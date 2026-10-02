@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>TTT Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #000;
+  --panel: #0a0b0d;
+  --panel-2: #111318;
+  --line: #23262d;
+  --line-2: #30343c;
+  --text: #e8e8e8;
+  --dim: #8b8f98;
+  --faint: #5b5f68;
+  --amber: #ffa028;
+  --amber-dim: #7a4c10;
+  --blue: #4aa3ff;
+  --up: #22d17a;
+  --up-2: #0f5c37;
+  --dn: #ff4d57;
+  --dn-2: #6b1a20;
+  --warn: #ffd23f;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: 'Inter', system-ui, -apple-system, Segoe UI, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 12px/1.45 var(--mono); }
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--amber); text-decoration: underline; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.hidden { display: none !important; }
+.dim { color: var(--dim); }
+.up { color: var(--up); } .dn { color: var(--dn); } .amber { color: var(--amber); }
+
+/* ---------- top bar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 10px;
+  background: #050505; border-bottom: 1px solid var(--amber-dim);
+}
+.brand { display: flex; align-items: baseline; gap: 6px; }
+.logo { background: var(--amber); color: #000; font-weight: 600; padding: 1px 6px; letter-spacing: 1px; }
+.brand-sub { color: var(--amber); letter-spacing: 3px; font-weight: 500; }
+.clock { color: var(--text); font-weight: 500; min-width: 98px; }
+.pill { padding: 1px 8px; border: 1px solid var(--line-2); color: var(--dim); white-space: nowrap; }
+.pill.rth { border-color: var(--up); color: var(--up); }
+.pill.globex { border-color: var(--blue); color: var(--blue); }
+.pill.closed { border-color: var(--dn); color: var(--dn); }
+.next-event { color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 38vw; }
+.spacer { flex: 1; }
+.status { color: var(--dim); white-space: nowrap; }
+.status.busy { color: var(--amber); }
+.status.err { color: var(--dn); }
+.btn {
+  height: 26px; padding: 0 10px; background: var(--panel-2); border: 1px solid var(--line-2);
+  cursor: pointer; letter-spacing: .5px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--amber); }
+.btn.primary { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.danger { color: var(--dn); }
+.btn .key { display: inline-block; padding: 0 3px; margin-right: 3px; border: 1px solid currentColor; font-size: 10px; line-height: 13px; }
+.btn.spin { opacity: .7; pointer-events: none; }
+
+.tape { height: 46px; border-bottom: 1px solid var(--line); overflow: hidden; }
+
+/* ---------- grid / panels ---------- */
+.grid {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 6px; padding: 6px; align-items: stretch;
+}
+.span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; }
+.span-7 { grid-column: span 7; } .span-12 { grid-column: span 12; }
+.panel {
+  background: var(--panel); border: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+}
+.panel.tall { height: 560px; }
+.ph {
+  display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 3px 8px;
+  background: linear-gradient(#16120a, #0d0b07); border-bottom: 1px solid var(--amber-dim);
+  color: var(--amber); font-weight: 600; letter-spacing: .6px; white-space: nowrap;
+}
+.fn { background: var(--amber); color: #000; padding: 0 5px; font-size: 11px; }
+.ph-sub { color: var(--dim); font-weight: 400; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; }
+.ph-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+.pb { padding: 6px 8px; min-height: 0; }
+.pb.flush { padding: 0; flex: 1; }
+.pb.scroll { overflow: auto; flex: 1; }
+.mini {
+  height: 22px; padding: 0 7px; font-size: 11px; background: #000; border: 1px solid var(--line-2);
+  color: var(--dim); cursor: pointer;
+}
+.mini:hover { color: var(--text); border-color: var(--amber); }
+.mini.on { color: #000; background: var(--amber); border-color: var(--amber); }
+.mini.accent { color: var(--amber); border-color: var(--amber-dim); }
+.mini.search { width: 140px; cursor: text; color: var(--text); }
+
+/* ---------- tables ---------- */
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tbl th {
+  text-align: right; color: var(--dim); font-weight: 400; font-size: 11px;
+  padding: 3px 6px; border-bottom: 1px solid var(--line-2); white-space: nowrap;
+}
+.tbl td { text-align: right; padding: 4px 6px; border-bottom: 1px solid #16181d; white-space: nowrap; }
+.tbl th:first-child, .tbl td:first-child { text-align: left; }
+.tbl tr.row { cursor: pointer; }
+.tbl tr.row:hover td { background: #12141a; }
+.tbl tr.sel td { background: #1a1408; }
+.tbl tr.sel td:first-child { box-shadow: inset 2px 0 var(--amber); }
+.sym { color: var(--amber); font-weight: 600; }
+.sym small { color: var(--faint); font-weight: 400; margin-left: 4px; }
+.last { font-weight: 600; }
+.tag {
+  display: inline-block; padding: 0 5px; font-size: 10.5px; border: 1px solid var(--line-2); color: var(--dim);
+}
+.tag.up2 { background: var(--up-2); color: #b9ffd9; border-color: var(--up); }
+.tag.up1 { color: var(--up); border-color: var(--up-2); }
+.tag.dn2 { background: var(--dn-2); color: #ffd0d3; border-color: var(--dn); }
+.tag.dn1 { color: var(--dn); border-color: var(--dn-2); }
+.tag.flat { color: var(--warn); border-color: #5c4c10; }
+.lvl { color: var(--dim); font-size: 11px; }
+.lvl b { font-weight: 500; color: var(--text); }
+.lvl .brk { color: var(--warn); }
+.rangebar { position: relative; width: 60px; height: 6px; background: #1d2027; display: inline-block; vertical-align: middle; }
+.rangebar i { position: absolute; top: -2px; width: 3px; height: 10px; background: var(--amber); }
+.stale { color: var(--faint); }
+.spark { display: block; }
+
+.detail { margin-top: 8px; padding: 8px; border: 1px solid var(--line); background: #07080a; font-family: var(--sans); font-size: 12.5px; }
+.detail h4 { margin: 0 0 4px; font: 600 12px var(--mono); color: var(--amber); }
+.detail p { margin: 3px 0; color: #d6d6d6; }
+
+/* ---------- brief ---------- */
+.brief h5 { margin: 10px 0 4px; font: 600 11px var(--mono); color: var(--amber); letter-spacing: .8px; }
+.brief h5:first-child { margin-top: 0; }
+.brief .toneline { font-size: 13px; font-weight: 600; }
+.brief ul { margin: 0; padding-left: 14px; font-family: var(--sans); }
+.brief li { margin: 2px 0; }
+.brief .fline { font-family: var(--mono); font-size: 11.5px; padding: 1px 0; border-bottom: 1px dotted #1a1c21; }
+.brief .theme { margin: 4px 0 6px; }
+.brief .theme b { color: var(--text); }
+.ai-out { white-space: pre-wrap; font-family: var(--sans); font-size: 12.5px; padding: 8px; border: 1px solid var(--amber-dim); background: #0d0a04; margin-bottom: 8px; }
+
+/* ---------- news ---------- */
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: 1px solid transparent; color: var(--dim); padding: 1px 6px; cursor: pointer; font-size: 11px; }
+.tabs button:hover { color: var(--text); }
+.tabs button.on { color: #000; background: var(--amber); }
+.tabs button .n { opacity: .7; margin-left: 3px; }
+.news-item { display: grid; grid-template-columns: 54px 1fr; gap: 6px; padding: 5px 2px; border-bottom: 1px solid #15171c; }
+.news-item .t { color: var(--dim); font-size: 11px; }
+.news-item .t .d { display: block; color: var(--faint); font-size: 10px; }
+.news-item .h { font-family: var(--sans); font-size: 12.5px; line-height: 1.35; }
+.news-item.hi .h { font-weight: 600; }
+.news-item.hi .t { color: var(--dn); }
+.news-item.new { background: #0f1208; }
+.news-item .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 10.5px; color: var(--faint); }
+.news-item .meta .src { color: var(--blue); }
+.news-item .meta .ft { color: var(--amber); opacity: .75; }
+.news-item .meta .flag { color: var(--dn); font-weight: 600; }
+
+/* ---------- earnings / calendar ---------- */
+.egroup h5 { margin: 8px 0 3px; font: 600 11px var(--mono); color: var(--amber); }
+.egroup h5:first-child { margin-top: 0; }
+.egroup .none { color: var(--faint); font-size: 11px; padding: 2px 0 4px; }
+.star { color: var(--warn); }
+.cal-row.past td { color: var(--faint); }
+.cal-row.soon td { background: #1a1408; }
+.cal-row.today td:first-child { box-shadow: inset 2px 0 var(--amber); }
+.impact { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+.impact.High { background: var(--dn); } .impact.Medium { background: #ff9f2e; } .impact.Low { background: var(--warn); }
+
+/* ---------- indices ---------- */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.tile { padding: 5px 7px; background: #07080a; border: 1px solid #16181d; }
+.tile .l { color: var(--amber); font-weight: 600; font-size: 11px; display: flex; justify-content: space-between; }
+.tile .v { font-size: 14px; font-weight: 600; }
+.tile .c { font-size: 11px; }
+
+/* ---------- misc ---------- */
+.msg { color: var(--faint); padding: 10px 2px; }
+.msg.err { color: var(--dn); }
+.skeleton { color: var(--faint); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+.statusbar {
+  display: flex; gap: 16px; flex-wrap: wrap; padding: 4px 10px; border-top: 1px solid var(--line);
+  color: var(--faint); font-size: 11px;
+}
+.statusbar .err { color: var(--dn); }
+
+/* ---------- modal ---------- */
+.modal { background: var(--panel); color: var(--text); border: 1px solid var(--amber-dim); padding: 0; width: min(920px, 96vw); max-height: 92vh; }
+.modal.small { width: min(440px, 94vw); }
+.modal::backdrop { background: rgba(0,0,0,.7); }
+.modal form { display: flex; flex-direction: column; max-height: 92vh; }
+.modal-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--amber); font-weight: 600; border-bottom: 1px solid var(--line); }
+.modal-h .mini { margin-left: auto; }
+.modal-b { overflow: auto; padding: 8px 12px; }
+.modal-f { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--line); }
+fieldset { border: 1px solid var(--line); margin: 0 0 10px; padding: 8px 10px; }
+legend { color: var(--amber); padding: 0 4px; }
+legend .dim { font-size: 11px; }
+label { display: block; color: var(--dim); margin: 4px 0; }
+label.row { display: flex; gap: 6px; align-items: center; }
+fieldset input:not([type=checkbox]), fieldset select, fieldset textarea {
+  display: block; width: 100%; margin-top: 2px; padding: 5px 7px; background: #000; border: 1px solid var(--line-2); color: var(--text);
+}
+textarea { resize: vertical; font-size: 11.5px; white-space: pre; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.checks label { display: flex; gap: 5px; align-items: center; margin: 0; color: var(--text); }
+.hint { color: var(--faint); margin: 4px 0 0; font-size: 11px; }
+code { color: var(--amber); }
+.keys div { padding: 3px 0; } .keys b { display: inline-block; min-width: 90px; color: var(--amber); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1200px) {
+  .span-4, .span-5, .span-7 { grid-column: span 12; }
+  .next-event { display: none; }
+}
+@media (max-width: 720px) {
+  .topbar { flex-wrap: wrap; height: auto; padding: 6px 10px; }
+  .status, .brand-sub { display: none; }
+  .panel.tall { height: 480px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="logo">TTT</span><span class="brand-sub">TERMINAL</span></div>
+  <div class="clock" id="clock">--:--:-- ET</div>
+  <div class="pill" id="session">—</div>
+  <div class="next-event" id="nextEvent"></div>
+  <div class="spacer"></div>
+  <div class="status" id="status">Loading…</div>
+  <button class="btn primary" id="btnRefresh" title="Refresh data (R)"><span class="key">R</span> REFRESH</button>
+  <select class="btn" id="autoRefresh" title="Auto refresh">
+    <option value="0">AUTO OFF</option><option value="60">AUTO 1m</option><option value="120">AUTO 2m</option>
+    <option value="300">AUTO 5m</option><option value="900">AUTO 15m</option>
+  </select>
+  <button class="btn" id="btnSettings" title="Settings (S)"><span class="key">S</span> SETTINGS</button>
+  <button class="btn" id="btnHelp" title="Keyboard shortcuts (?)">?</button>
+</header>
+
+<div class="tape" id="tape"></div>
+
+<main class="grid" id="grid">
+
+  <section class="panel span-7" data-panel="trend">
+    <div class="ph"><span class="fn">TRND</span> FUTURES TREND MONITOR
+      <span class="ph-sub" id="trendSub"></span>
+      <div class="ph-tools" id="trendWindows"></div>
+    </div>
+    <div class="pb">
+      <div class="tbl-wrap"><table class="tbl" id="trendTable"></table></div>
+      <div class="detail" id="trendDetail"></div>
+    </div>
+  </section>
+
+  <section class="panel span-5" data-panel="brief">
+    <div class="ph"><span class="fn">BRF</span> OVERNIGHT BRIEF
+      <div class="ph-tools">
+        <button class="mini" id="btnCopyBrief" title="Copy brief to clipboard">COPY</button>
+        <button class="mini accent" id="btnAI" title="Generate an AI brief with your Anthropic key">AI BRIEF</button>
+      </div>
+    </div>
+    <div class="pb scroll" id="brief"></div>
+  </section>
+
+  <section class="panel span-7 tall" data-panel="heatmap">
+    <div class="ph"><span class="fn">HMAP</span> S&amp;P 500 HEAT MAP <span class="ph-sub">real-time · TradingView</span>
+      <div class="ph-tools">
+        <select class="mini" id="heatSrc">
+          <option value="SPX500">S&amp;P 500</option><option value="NASDAQ100">NASDAQ 100</option>
+          <option value="DJDJI">DOW 30</option><option value="AllUSA">ALL US</option>
+        </select>
+      </div>
+    </div>
+    <div class="pb flush" id="heatmap"></div>
+  </section>
+
+  <section class="panel span-5 tall" data-panel="news">
+    <div class="ph"><span class="fn">NEWS</span> HIGH-IMPACT NEWS
+      <span class="ph-sub" id="newsSub"></span>
+      <div class="ph-tools"><input class="mini search" id="newsSearch" placeholder="filter  /"></div>
+    </div>
+    <div class="tabs" id="newsTabs"></div>
+    <div class="pb scroll" id="newsList"></div>
+    <div class="pb flush hidden" id="newsTV"></div>
+  </section>
+
+  <section class="panel span-7 tall" data-panel="chart">
+    <div class="ph"><span class="fn">GP</span> CHART <span class="ph-sub" id="chartSym"></span>
+      <div class="ph-tools" id="chartTabs"></div>
+    </div>
+    <div class="pb flush" id="chart"></div>
+  </section>
+
+  <section class="panel span-5 tall" data-panel="earnings">
+    <div class="ph"><span class="fn">ERN</span> MARKET-MOVING EARNINGS <span class="ph-sub" id="earnSub"></span></div>
+    <div class="pb scroll" id="earnings"></div>
+  </section>
+
+  <section class="panel span-5" data-panel="indices">
+    <div class="ph"><span class="fn">WEI</span> INDICES &amp; MACRO</div>
+    <div class="pb" id="indices"></div>
+  </section>
+
+  <section class="panel span-7" data-panel="calendar">
+    <div class="ph"><span class="fn">ECO</span> ECONOMIC CALENDAR <span class="ph-sub" id="calSub"></span>
+      <div class="ph-tools">
+        <button class="mini on" data-cal="list">TABLE</button>
+        <button class="mini" data-cal="tv">TRADINGVIEW</button>
+      </div>
+    </div>
+    <div class="pb scroll" id="calendar"></div>
+    <div class="pb flush hidden" id="calendarTV"></div>
+  </section>
+
+</main>
+
+<footer class="statusbar" id="statusbar"></footer>
+
+<!-- settings -->
+<dialog id="settings" class="modal">
+  <form method="dialog" id="settingsForm">
+    <div class="modal-h">SETTINGS <span class="dim">— saved in this browser only</span>
+      <button class="mini" value="cancel" formnovalidate>✕</button></div>
+    <div class="modal-b">
+      <fieldset>
+        <legend>Data connection</legend>
+        <label>Your CORS proxy URL <span class="dim">(Cloudflare Worker — see the proxy folder README)</span>
+          <input name="proxyUrl" placeholder="https://ttt-proxy.yourname.workers.dev"></label>
+        <label class="row"><input type="checkbox" name="usePublicProxies"> Fall back to public CORS proxies</label>
+        <div class="cols">
+          <label>Trend windows (hours) <input name="trendHours" placeholder="4, 8"></label>
+          <label>Overnight starts (ET hour) <input name="overnightStartHourET" type="number" min="0" max="23"></label>
+          <label>Chart interval <select name="chartInterval">
+            <option value="1">1m</option><option value="3">3m</option><option value="5">5m</option>
+            <option value="15">15m</option><option value="60">1h</option></select></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Panels</legend>
+        <div class="checks" id="panelChecks"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Futures &amp; instruments <span class="dim">label | name | data symbol (Yahoo, or coinbase:BTC-USD) | TradingView symbol | decimals | tick</span></legend>
+        <textarea name="instruments" rows="8" spellcheck="false"></textarea>
+        <p class="hint">Tip: if your TradingView widgets show CME futures, swap the TV symbol to e.g. <code>CME_MINI:ES1!</code>, <code>CME_MINI:NQ1!</code>, <code>NYMEX:CL1!</code>.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Indices board <span class="dim">label | Yahoo symbol | decimals</span></legend>
+        <textarea name="indices" rows="5" spellcheck="false"></textarea>
+      </fieldset>
+
+      <fieldset>
+        <legend>News feeds <span class="dim">name | RSS/Atom URL</span></legend>
+        <textarea name="feeds" rows="7" spellcheck="false"></textarea>
+        <p class="hint">Any RSS works. Google News search feeds are great for custom topics:
+          <code>https://news.google.com/rss/search?q=YOUR+TOPIC+when:1d&amp;hl=en-US&amp;gl=US&amp;ceid=US:en</code></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>News folders <span class="dim">Folder name: keyword, keyword, …</span></legend>
+        <textarea name="folders" rows="7" spellcheck="false"></textarea>
+        <label>High-impact words <textarea name="impactKeys" rows="3" spellcheck="false"></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Earnings &amp; calendar</legend>
+        <div class="cols">
+          <label>Min market cap ($B) <input name="earningsMinCapB" type="number" min="0"></label>
+          <label>Calendar currencies <input name="calendarCurrencies" placeholder="USD or USD,EUR or ALL"></label>
+          <label>Min impact <select name="calendarMinImpact">
+            <option>High</option><option>Medium</option><option>Low</option></select></label>
+        </div>
+        <label>Always-show tickers <textarea name="earningsWatchlist" rows="2" spellcheck="false"></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>AI brief (optional)</legend>
+        <div class="cols">
+          <label>Anthropic API key <input name="anthropicKey" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+          <label>Model <input name="aiModel"></label>
+        </div>
+        <p class="hint">The key stays in this browser and is sent only to api.anthropic.com. Use a key with a spend limit.</p>
+      </fieldset>
+    </div>
+    <div class="modal-f">
+      <button class="btn" type="button" id="btnExport">EXPORT</button>
+      <button class="btn" type="button" id="btnImport">IMPORT</button>
+      <button class="btn danger" type="button" id="btnReset">RESET DEFAULTS</button>
+      <div class="spacer"></div>
+      <button class="btn" value="cancel" formnovalidate>CANCEL</button>
+      <button class="btn primary" value="save" id="btnSave">SAVE &amp; RELOAD</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="help" class="modal small">
+  <form method="dialog">
+    <div class="modal-h">KEYBOARD <button class="mini">✕</button></div>
+    <div class="modal-b keys">
+      <div><b>R</b> refresh data</div>
+      <div><b>Shift + R</b> refresh data + reload TradingView widgets</div>
+      <div><b>S</b> settings</div>
+      <div><b>1 – 9</b> load instrument into chart &amp; trend detail</div>
+      <div><b>/</b> filter news</div>
+      <div><b>H</b> high-impact news only</div>
+      <div><b>A</b> generate AI brief</div>
+      <div><b>Esc</b> close dialogs / clear filter</div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+// ===== config.js =====
+const __mod_config = (() => {
+// Default settings + persistence. Everything here is editable from the
+// Settings panel (press S) and is stored in this browser's localStorage.
+
+const STORE_KEY = 'ttt.terminal.settings.v1';
+
+const DEFAULTS = {
+  // Your own CORS proxy (see terminal/proxy/README.md). Strongly recommended:
+  // public proxies work but are rate limited and occasionally down.
+  proxyUrl: '',
+  usePublicProxies: true,
+
+  autoRefreshSec: 120,          // 0 = off
+  trendHours: [4, 8],           // the two lookback windows shown in the trend monitor
+  overnightStartHourET: 16,     // "overnight" news window starts at prior cash close
+  sessionStartHourET: 18,       // CME Globex session open (used for ON high/low, VWAP)
+
+  // label | data symbol (Yahoo, or coinbase:PRODUCT) | TradingView symbol | decimals | tick size
+  instruments: [
+    { label: 'ES',  name: 'S&P 500 E-mini',      src: 'ES=F',             tv: 'OANDA:SPX500USD', dp: 2, tick: 0.25 },
+    { label: 'NQ',  name: 'Nasdaq 100 E-mini',   src: 'NQ=F',             tv: 'OANDA:NAS100USD', dp: 2, tick: 0.25 },
+    { label: 'RTY', name: 'Russell 2000 E-mini', src: 'RTY=F',            tv: 'OANDA:US2000USD', dp: 1, tick: 0.1 },
+    { label: 'CL',  name: 'Crude Oil WTI',       src: 'CL=F',             tv: 'TVC:USOIL',       dp: 2, tick: 0.01 },
+    { label: 'GC',  name: 'Gold',                src: 'GC=F',             tv: 'TVC:GOLD',        dp: 1, tick: 0.1 },
+    { label: 'SI',  name: 'Silver',              src: 'SI=F',             tv: 'TVC:SILVER',      dp: 3, tick: 0.005 },
+    { label: 'BTC', name: 'Bitcoin',             src: 'coinbase:BTC-USD', tv: 'COINBASE:BTCUSD', dp: 0, tick: 1 },
+  ],
+
+  indices: [
+    { label: 'SPX',   src: '^GSPC',    dp: 2 },
+    { label: 'NDX',   src: '^NDX',     dp: 2 },
+    { label: 'DJIA',  src: '^DJI',     dp: 2 },
+    { label: 'RUT',   src: '^RUT',     dp: 2 },
+    { label: 'VIX',   src: '^VIX',     dp: 2 },
+    { label: 'DXY',   src: 'DX-Y.NYB', dp: 3 },
+    { label: 'US10Y', src: '^TNX',     dp: 3 },
+    { label: 'NKY',   src: '^N225',    dp: 0 },
+    { label: 'DAX',   src: '^GDAXI',   dp: 0 },
+  ],
+
+  feeds: [
+    { name: 'MarketWatch RT',   url: 'https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines' },
+    { name: 'MarketWatch Top',  url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
+    { name: 'CNBC Top',         url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' },
+    { name: 'CNBC Economy',     url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258' },
+    { name: 'CNBC Earnings',    url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839135' },
+    { name: 'Yahoo Finance',    url: 'https://finance.yahoo.com/news/rssindex' },
+    { name: 'Investing Econ',   url: 'https://www.investing.com/rss/news_14.rss' },
+    { name: 'Google: Futures',  url: 'https://news.google.com/rss/search?q=%22stock+futures%22+OR+%22S%26P+500%22+OR+Nasdaq+when:1d&hl=en-US&gl=US&ceid=US:en' },
+    { name: 'Google: Macro',    url: 'https://news.google.com/rss/search?q=Fed+OR+Powell+OR+inflation+OR+tariffs+OR+Treasury+yields+when:1d&hl=en-US&gl=US&ceid=US:en' },
+    { name: 'Federal Reserve',  url: 'https://www.federalreserve.gov/feeds/press_all.xml' },
+    { name: 'OilPrice',         url: 'https://oilprice.com/rss/main' },
+  ],
+
+  // Folder name: comma-separated keywords (case-insensitive, whole words + plurals)
+  folders: [
+    { name: 'Fed & Rates',   keys: 'fed, fomc, powell, rate cut, rate hike, interest rate, treasury, yields, bond, waller, williams, jefferson, bowman, barr, goolsbee, daly, logan, kashkari, hammack, musalem, schmid, dot plot, balance sheet, central bank, ecb, boj, lagarde, ueda' },
+    { name: 'Data & Inflation', keys: 'cpi, ppi, pce, inflation, payrolls, nonfarm, jobs report, jobless claims, unemployment, gdp, retail sales, ism, pmi, consumer confidence, consumer sentiment, housing starts, durable goods, jolts, adp' },
+    { name: 'Earnings',      keys: 'earnings, guidance, revenue, eps, quarterly, results, outlook, forecast, beats, misses, profit warning, buyback' },
+    { name: 'Geopolitics',   keys: 'war, missile, attack, sanctions, tariff, trade war, china, russia, ukraine, israel, iran, taiwan, north korea, strike, ceasefire, election, white house, trump, congress, shutdown, debt ceiling' },
+    { name: 'Energy & Metals', keys: 'oil, crude, opec, brent, wti, natural gas, gasoline, gold, silver, copper, refinery, inventories, eia' },
+    { name: 'Tech & AI',     keys: 'nvidia, apple, microsoft, alphabet, google, amazon, meta, tesla, broadcom, amd, semiconductor, chip, ai, openai, anthropic, data center' },
+    { name: 'Crypto',        keys: 'bitcoin, btc, crypto, ether, ethereum, stablecoin, coinbase, etf flows, microstrategy, strategy inc' },
+  ],
+
+  // Words that push a headline up the "high impact" ranking.
+  impactKeys: 'breaking, surge, plunge, plunges, tumble, tumbles, soar, soars, crash, selloff, sell-off, rally, record, emergency, halt, halted, default, downgrade, bankruptcy, surprise, unexpected, hot, cooler, hawkish, dovish, rate cut, rate hike, fomc, cpi, payrolls, jobs report, tariff, sanctions, war, attack, opec, guidance, warns, slashes, raises, misses, beats, layoffs, investigation, sec, doj',
+
+  earningsMinCapB: 40,          // show earnings for companies >= this market cap ($B)
+  earningsWatchlist: 'NVDA, AAPL, MSFT, GOOGL, AMZN, META, TSLA, AVGO, AMD, NFLX, JPM, GS, MS, BAC, WFC, C, UNH, LLY, XOM, CVX, WMT, COST, ORCL, CRM, ADBE, MU, INTC, QCOM, TSM, ASML, NKE, FDX, MCD, DIS, BA, CAT, PLTR, SMCI, ARM, COIN, MSTR',
+
+  calendarCurrencies: 'USD',    // ForexFactory feed: comma list, or ALL
+  calendarMinImpact: 'High',    // High | Medium | Low
+
+  heatmapSource: 'SPX500',      // SPX500, NASDAQ100, DJDJI, AllUSA ...
+  chartInterval: '5',
+
+  anthropicKey: '',
+  aiModel: 'claude-opus-5-5',
+
+  panels: {
+    trend: true, brief: true, heatmap: true, news: true, earnings: true,
+    calendar: true, indices: true, chart: true,
+  },
+};
+
+function loadSettings() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { saved = {}; }
+  const s = structuredClone(DEFAULTS);
+  for (const k of Object.keys(saved)) {
+    if (k === 'panels') Object.assign(s.panels, saved.panels);
+    else if (k in s) s[k] = saved[k];
+  }
+  return s;
+}
+
+function saveSettings(s) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); return true; } catch { return false; }
+}
+
+function resetSettings() {
+  try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
+  return structuredClone(DEFAULTS);
+}
+
+// ---- line-format helpers used by the settings textareas ----
+
+const fmt = {
+  instruments: (a) => a.map(i => [i.label, i.name, i.src, i.tv, i.dp, i.tick].join(' | ')).join('\n'),
+  indices: (a) => a.map(i => [i.label, i.src, i.dp].join(' | ')).join('\n'),
+  feeds: (a) => a.map(f => `${f.name} | ${f.url}`).join('\n'),
+  folders: (a) => a.map(f => `${f.name}: ${f.keys}`).join('\n'),
+};
+
+const rows = (txt) => txt.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+const cells = (l) => l.split('|').map(c => c.trim());
+
+const parse = {
+  instruments: (txt) => rows(txt).map(l => {
+    const [label, name, src, tv, dp, tick] = cells(l);
+    return { label, name: name || label, src, tv: tv || '', dp: Number(dp ?? 2) || 0, tick: Number(tick) || 0 };
+  }).filter(i => i.label && i.src),
+  indices: (txt) => rows(txt).map(l => {
+    const [label, src, dp] = cells(l);
+    return { label, src, dp: Number(dp ?? 2) || 0 };
+  }).filter(i => i.label && i.src),
+  feeds: (txt) => rows(txt).map(l => {
+    const i = l.indexOf('|');
+    return i < 0 ? null : { name: l.slice(0, i).trim(), url: l.slice(i + 1).trim() };
+  }).filter(f => f && /^https?:\/\//.test(f.url)),
+  folders: (txt) => rows(txt).map(l => {
+    const i = l.indexOf(':');
+    return i < 0 ? null : { name: l.slice(0, i).trim(), keys: l.slice(i + 1).trim() };
+  }).filter(Boolean),
+};
+
+return { DEFAULTS, loadSettings, saveSettings, resetSettings, fmt, parse };
+})();
+
+// ===== net.js =====
+const __mod_net = (() => {
+// Network layer: most free market sources (Yahoo, RSS, Nasdaq) don't send CORS
+// headers, so browser requests go through a proxy chain:
+//   1. your own Cloudflare Worker (settings.proxyUrl)  <- fast + reliable
+//   2. a direct request (works for CORS-friendly APIs such as Coinbase)
+//   3. public CORS proxies (rate limited; fine for light personal use)
+// The proxy that last succeeded is tried first next time.
+
+const PUBLIC_PROXIES = [
+  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+];
+
+let settings = { proxyUrl: '', usePublicProxies: true };
+let preferred = null; // name of last-good route
+const netStats = { ok: 0, fail: 0, lastRoute: '' };
+
+function configureNet(s) { settings = s; preferred = null; }
+
+function routes(url, { direct = false } = {}) {
+  const list = [];
+  if (settings.proxyUrl) {
+    const base = settings.proxyUrl.replace(/\/+$/, '');
+    list.push({ name: 'worker', url: `${base}/?url=${encodeURIComponent(url)}` });
+  }
+  if (direct) list.push({ name: 'direct', url });
+  if (settings.usePublicProxies || !settings.proxyUrl) {
+    PUBLIC_PROXIES.forEach((p, i) => list.push({ name: `public${i + 1}`, url: p(url) }));
+  }
+  if (preferred) list.sort((a, b) => (b.name === preferred) - (a.name === preferred));
+  return list;
+}
+
+async function attempt(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.text();
+  } finally { clearTimeout(t); }
+}
+
+async function fetchText(url, opts = {}) {
+  const { timeoutMs = 9000, validate } = opts;
+  let lastErr;
+  if (opts.directFirst) {
+    try {
+      const text = await attempt(url, timeoutMs);
+      if (!validate || validate(text)) { netStats.ok++; return text; }
+    } catch (e) { lastErr = e; }
+  }
+  for (const route of routes(url, opts)) {
+    try {
+      const text = await attempt(route.url, timeoutMs);
+      if (validate && !validate(text)) throw new Error('unexpected response');
+      preferred = route.name;
+      netStats.ok++; netStats.lastRoute = route.name;
+      return text;
+    } catch (e) { lastErr = e; }
+  }
+  netStats.fail++;
+  throw new Error(`fetch failed (${url.slice(0, 60)}…): ${lastErr?.message || 'no route'}`);
+}
+
+async function fetchJSON(url, opts = {}) {
+  const text = await fetchText(url, {
+    ...opts,
+    validate: (t) => { try { JSON.parse(t); return true; } catch { return false; } },
+  });
+  return JSON.parse(text);
+}
+
+// Run async jobs with limited concurrency (be gentle on the proxies).
+async function pool(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      try { out[idx] = { ok: true, value: await fn(items[idx], idx) }; }
+      catch (e) { out[idx] = { ok: false, error: e }; }
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+return { netStats, configureNet, fetchText, fetchJSON, pool };
+})();
+
+// ===== market.js =====
+const __mod_market = (() => {
+// Price data (Yahoo Finance chart API + Coinbase) and the intraday trend
+// analytics behind the Futures Trend Monitor.
+
+const { fetchJSON } = __mod_net;
+const HOUR = 3600e3;
+
+// ---------- Eastern-time helpers ----------
+const etFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', hourCycle: 'h23',
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short',
+});
+function etParts(ms) {
+  const p = Object.fromEntries(etFmt.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  return { y: +p.year, m: +p.month, d: +p.day, h: +p.hour, min: +p.minute, wd: p.weekday, date: `${p.year}-${p.month}-${p.day}` };
+}
+const etMinutes = (ms) => { const p = etParts(ms); return p.h * 60 + p.min; };
+function etTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+// Futures trade date: a bar at/after the session open (18:00 ET) belongs to the next day.
+const sessionKey = (ms, openHour) => etParts(ms + (24 - openHour) * HOUR).date;
+
+// ---------- fetching ----------
+async function yahooBars(sym, range = '5d', interval = '5m') {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}&includePrePost=true`;
+  const j = await fetchJSON(url);
+  const r = j?.chart?.result?.[0];
+  if (!r) throw new Error(j?.chart?.error?.description || `no data for ${sym}`);
+  const q = r.indicators?.quote?.[0] || {};
+  const bars = [];
+  (r.timestamp || []).forEach((t, i) => {
+    if (q.close?.[i] == null) return;
+    bars.push({ t: t * 1000, o: q.open[i], h: q.high[i], l: q.low[i], c: q.close[i], v: q.volume?.[i] || 0 });
+  });
+  return { bars, meta: r.meta || {} };
+}
+
+async function coinbaseBars(product) {
+  const now = Date.now();
+  const gran = 300; // 5m, 300 candles per request = 25h
+  const span = gran * 300 * 1000;
+  const urls = [0, 1].map(k => {
+    const end = new Date(now - k * span).toISOString();
+    const start = new Date(now - (k + 1) * span).toISOString();
+    return `https://api.exchange.coinbase.com/products/${product}/candles?granularity=${gran}&start=${start}&end=${end}`;
+  });
+  const parts = await Promise.all(urls.map(u => fetchJSON(u, { directFirst: true })));
+  const seen = new Set();
+  const bars = parts.flat()
+    .map(([t, l, h, o, c, v]) => ({ t: t * 1000, o, h, l, c, v }))
+    .filter(b => !seen.has(b.t) && seen.add(b.t))
+    .sort((a, b) => a.t - b.t);
+  return { bars, meta: {} };
+}
+
+async function loadInstrument(inst) {
+  if (inst.src.startsWith('coinbase:')) {
+    try { return await coinbaseBars(inst.src.slice(9)); }
+    catch { return yahooBars('BTC-USD'); }
+  }
+  return yahooBars(inst.src);
+}
+
+async function loadQuote(ix) {
+  const { bars, meta } = await yahooBars(ix.src, '1d', '5m');
+  const last = meta.regularMarketPrice ?? bars.at(-1)?.c;
+  const prev = meta.previousClose ?? meta.chartPreviousClose;
+  return {
+    ...ix, last, prev,
+    chg: last - prev, pct: prev ? (last / prev - 1) * 100 : NaN,
+    hi: meta.regularMarketDayHigh, lo: meta.regularMarketDayLow,
+    closes: bars.map(b => b.c), t: (meta.regularMarketTime || 0) * 1000,
+  };
+}
+
+// ---------- analytics ----------
+function hl(bars) {
+  let h = -Infinity, l = Infinity;
+  for (const b of bars) { if (b.h > h) h = b.h; if (b.l < l) l = b.l; }
+  return bars.length ? { h, l } : null;
+}
+
+function windowStats(bars, last) {
+  if (bars.length < 3) return null;
+  const first = bars[0].o ?? bars[0].c;
+  const net = last - first;
+  let path = 0;
+  for (let i = 1; i < bars.length; i++) path += Math.abs(bars[i].c - bars[i - 1].c);
+  path += Math.abs(bars[0].c - first);
+  const { h, l } = hl(bars);
+  const er = path ? Math.abs(net) / path : 0;           // Kaufman efficiency ratio
+  const pos = h > l ? (last - l) / (h - l) : 0.5;        // where price sits in the window range
+  const avgBar = bars.reduce((s, b) => s + (b.h - b.l), 0) / bars.length;
+
+  // market structure: compare highs/lows of the window's thirds
+  const n = Math.floor(bars.length / 3);
+  let structure = 'mixed';
+  if (n >= 2) {
+    const [a, b, c] = [bars.slice(0, n), bars.slice(n, 2 * n), bars.slice(2 * n)].map(hl);
+    const hh = b.h > a.h && c.h > b.h, hlw = b.l > a.l && c.l > b.l;
+    const lh = b.h < a.h && c.h < b.h, ll = b.l < a.l && c.l < b.l;
+    if (hh && hlw) structure = 'HH/HL';
+    else if (lh && ll) structure = 'LH/LL';
+    else if (hlw && !ll) structure = 'higher lows';
+    else if (lh && !hh) structure = 'lower highs';
+    else if (c.h <= Math.max(a.h, b.h) && c.l >= Math.min(a.l, b.l)) structure = 'inside / balance';
+  }
+
+  const dir = net > 0 ? 'UP' : net < 0 ? 'DOWN' : 'FLAT';
+  let regime, tone;
+  if (er >= 0.35) { regime = `TREND ${dir}`; tone = dir === 'UP' ? 'up2' : 'dn2'; }
+  else if (er >= 0.18) { regime = `DRIFT ${dir}`; tone = dir === 'UP' ? 'up1' : 'dn1'; }
+  else { regime = 'RANGE'; tone = 'flat'; }
+
+  let note = '';
+  if (net > 0 && pos < 0.35) note = 'faded off highs';
+  else if (net < 0 && pos > 0.65) note = 'bounced off lows';
+  else if (pos >= 0.9) note = 'pressing window highs';
+  else if (pos <= 0.1) note = 'pressing window lows';
+
+  return { net, pct: (net / first) * 100, h, l, er, pos, avgBar, structure, regime, tone, note, from: bars[0].t };
+}
+
+function analyze(inst, data, cfg, now = Date.now()) {
+  const { bars, meta } = data;
+  if (!bars.length) throw new Error('no bars');
+  const lastBar = bars.at(-1);
+  const last = (meta.regularMarketPrice && Math.abs(meta.regularMarketTime * 1000 - lastBar.t) < 15 * 60e3)
+    ? meta.regularMarketPrice : lastBar.c;
+  const openH = cfg.sessionStartHourET;
+
+  // split into futures sessions
+  const groups = [];
+  for (const b of bars) {
+    const k = sessionKey(b.t, openH);
+    if (!groups.length || groups.at(-1).k !== k) groups.push({ k, bars: [] });
+    groups.at(-1).bars.push(b);
+  }
+  const cur = groups.at(-1).bars;
+  const prior = groups.length > 1 ? groups.at(-2).bars : [];
+  const isRth = (b) => { const m = etMinutes(b.t); return m >= 570 && m < 960; }; // 09:30-16:00
+
+  const priorClose = meta.previousClose ?? prior.at(-1)?.c ?? cur[0].o;
+  const priorRth = prior.filter(isRth);
+  const pd = hl(priorRth.length ? priorRth : prior);
+  const pdClose = (priorRth.length ? priorRth : prior).at(-1)?.c;
+  const on = hl(cur.filter(b => etMinutes(b.t) < 570 || etMinutes(b.t) >= openH * 60));
+  const sess = hl(cur);
+
+  let pv = 0, vol = 0;
+  for (const b of cur) { const tp = (b.h + b.l + b.c) / 3; pv += tp * b.v; vol += b.v; }
+  const vwap = vol > 0 ? pv / vol : null;
+
+  const ref = lastBar.t;
+  const windows = {};
+  for (const h of cfg.trendHours) windows[h] = windowStats(bars.filter(b => b.t > ref - h * HOUR), last);
+
+  const maxH = Math.max(...cfg.trendHours);
+  const spark = bars.filter(b => b.t > ref - maxH * HOUR);
+
+  return {
+    inst, last, lastT: lastBar.t, stale: now - lastBar.t > 20 * 60e3,
+    priorClose, chg: last - priorClose, pct: (last / priorClose - 1) * 100,
+    pdh: pd?.h, pdl: pd?.l, pdc: pdClose, onh: on?.h, onl: on?.l, sh: sess?.h, sl: sess?.l,
+    vwap, windows, spark,
+  };
+}
+
+// ---------- formatting / narrative ----------
+const nf = (x, dp = 2) => (x == null || !isFinite(x)) ? '—'
+  : x.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const sgn = (x, dp = 2) => (x == null || !isFinite(x)) ? '—' : (x > 0 ? '+' : '') + nf(x, dp);
+
+function narrate(a) {
+  const { inst } = a, dp = inst.dp;
+  const ticks = (x) => inst.tick ? ` (${Math.round(x / inst.tick)} ticks)` : '';
+  const parts = [];
+  for (const [h, w] of Object.entries(a.windows)) {
+    if (!w) continue;
+    const range = w.h - w.l;
+    let s = `${h}h ${sgn(w.net, dp)} (${sgn(w.pct)}%) — ${w.regime.toLowerCase()}, ${w.structure}`;
+    s += `; range ${nf(w.l, dp)}–${nf(w.h, dp)} = ${nf(range, dp)}${ticks(range)}, price at ${Math.round(w.pos * 100)}% of range`;
+    if (w.note) s += `, ${w.note}`;
+    parts.push(s + '.');
+  }
+  const lv = [];
+  if (a.vwap) lv.push(`${a.last >= a.vwap ? 'above' : 'below'} session VWAP ${nf(a.vwap, dp)}`);
+  if (a.onh != null) {
+    if (a.last > a.onh) lv.push(`ABOVE ON high ${nf(a.onh, dp)}`);
+    else if (a.last < a.onl) lv.push(`BELOW ON low ${nf(a.onl, dp)}`);
+    else lv.push(`inside ON range ${nf(a.onl, dp)}–${nf(a.onh, dp)}`);
+  }
+  if (a.pdh != null) {
+    if (a.last > a.pdh) lv.push(`above prior-day high ${nf(a.pdh, dp)}`);
+    else if (a.last < a.pdl) lv.push(`below prior-day low ${nf(a.pdl, dp)}`);
+    else lv.push(`inside prior-day range (PDH ${nf(a.pdh, dp)} / PDL ${nf(a.pdl, dp)})`);
+  }
+  if (lv.length) parts.push(`Levels: ${lv.join('; ')}.`);
+  return parts;
+}
+
+// Overall risk tone from equity index futures vs havens.
+function riskTone(list) {
+  const by = Object.fromEntries(list.map(a => [a.inst.label, a]));
+  const eq = ['ES', 'NQ', 'RTY'].map(k => by[k]?.pct).filter(x => isFinite(x));
+  if (!eq.length) return null;
+  const avg = eq.reduce((s, x) => s + x, 0) / eq.length;
+  const gold = by.GC?.pct;
+  let tone = 'MIXED';
+  if (avg > 0.25) tone = 'RISK-ON'; else if (avg < -0.25) tone = 'RISK-OFF';
+  if (tone === 'MIXED' && avg > 0.05 && !(gold > 0.5)) tone = 'MILD RISK-ON';
+  if (tone === 'MIXED' && avg < -0.05) tone = 'MILD RISK-OFF';
+  return { tone, avg };
+}
+
+return { etParts, etMinutes, etTime, loadInstrument, loadQuote, analyze, nf, sgn, narrate, riskTone };
+})();
+
+// ===== news.js =====
+const __mod_news = (() => {
+// News: RSS/Atom ingestion, de-duplication, folder classification and
+// high-impact scoring. No paid APIs — just public feeds.
+
+const { fetchText, pool } = __mod_net;
+const isXml = (t) => /<(rss|feed|rdf:RDF)[\s>]/i.test(t.slice(0, 2000));
+
+function textOf(el, sel) {
+  const n = el.querySelector(sel);
+  return n ? n.textContent.trim() : '';
+}
+
+function stripHtml(s) {
+  const d = document.createElement('div');
+  d.innerHTML = s;
+  return (d.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function parseFeed(xml, feedName) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const items = [...doc.querySelectorAll('item, entry')];
+  return items.map(it => {
+    let title = stripHtml(textOf(it, 'title'));
+    let link = textOf(it, 'link');
+    if (!link) link = it.querySelector('link')?.getAttribute('href') || '';
+    const date = textOf(it, 'pubDate') || textOf(it, 'published') || textOf(it, 'updated') || textOf(it, 'date');
+    const t = Date.parse(date) || 0;
+    let src = feedName;
+    // Google News puts the publisher at the end: "Headline - Reuters"
+    const gsrc = textOf(it, 'source');
+    if (gsrc) {
+      src = gsrc;
+      title = title.replace(new RegExp(`\\s+-\\s+${gsrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '');
+    }
+    const desc = stripHtml(textOf(it, 'description') || textOf(it, 'summary')).slice(0, 300);
+    return { title, link, t, src, feed: feedName, desc };
+  }).filter(i => i.title && i.t);
+}
+
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+
+function keyRegex(list) {
+  const words = list.split(',').map(w => w.trim().toLowerCase()).filter(Boolean)
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  // whole words, allowing simple plurals/tenses ("tariff" → "tariffs", but "war" ≠ "Warner")
+  return words.length ? new RegExp(`\\b(${words.join('|')})(?:s|es|ed|ing)?\\b`, 'gi') : null;
+}
+
+function classify(items, cfg, now = Date.now()) {
+  const folders = cfg.folders.map(f => ({ name: f.name, re: keyRegex(f.keys) }));
+  const impactRe = keyRegex(cfg.impactKeys);
+  const tickers = cfg.earningsWatchlist.split(',').map(s => s.trim()).filter(Boolean);
+  const tickRe = tickers.length ? new RegExp(`\\b(${tickers.join('|')})\\b`) : null;
+
+  // de-dup (same story across feeds) — keep the earliest, count sources
+  const seen = new Map();
+  for (const it of items.sort((a, b) => a.t - b.t)) {
+    const k = norm(it.title).slice(0, 70);
+    if (seen.has(k)) { seen.get(k).dupes++; continue; }
+    seen.set(k, { ...it, dupes: 0 });
+  }
+
+  const out = [...seen.values()].filter(i => i.t <= now + 5 * 60e3).map(it => {
+    const hay = `${it.title} ${it.desc}`;
+    const tags = folders.filter(f => f.re && hay.match(f.re)).map(f => f.name);
+    const impactHits = new Set((it.title.match(impactRe) || []).map(x => x.toLowerCase()));
+    const ageH = (now - it.t) / 3600e3;
+    let score = impactHits.size * 2 + tags.length + it.dupes * 1.5;
+    if (tickRe && tickRe.test(it.title)) score += 1;
+    if (/^(breaking|urgent|alert)\b/i.test(it.title)) score += 3;
+    if (it.feed === 'Federal Reserve') score += 3;
+    score -= Math.min(ageH, 24) * 0.15; // fresher first
+    return { ...it, tags, score, high: impactHits.size >= 1 && score >= 2.5 };
+  });
+  return out.sort((a, b) => b.t - a.t);
+}
+
+async function loadNews(cfg) {
+  const results = await pool(cfg.feeds, 4, async (f) => {
+    const xml = await fetchText(f.url, { validate: isXml, timeoutMs: 10000 });
+    return parseFeed(xml, f.name);
+  });
+  const items = [], failed = [];
+  results.forEach((r, i) => r.ok ? items.push(...r.value) : failed.push(cfg.feeds[i].name));
+  return { items: classify(items, cfg), failed };
+}
+
+// Start of the "overnight" window: most recent cash close (16:00 ET) before
+// today's open, rolling back over weekends.
+function overnightStart(cfg, now = Date.now()) {
+  const etNow = new Date(new Date(now).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const offset = now - etNow.getTime(); // ET-wall-clock → real ms
+  const d = new Date(etNow);
+  d.setHours(cfg.overnightStartHourET, 0, 0, 0);
+  // during/after today's close window we still want the prior close until 18:00
+  if (etNow.getHours() < 18 || d > etNow) d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return d.getTime() + offset;
+}
+
+return { parseFeed, classify, loadNews, overnightStart };
+})();
+
+// ===== events.js =====
+const __mod_events = (() => {
+// Scheduled catalysts: market-moving earnings (Nasdaq calendar) and
+// high-impact economic releases (ForexFactory weekly feed).
+
+const { fetchJSON } = __mod_net;
+const { etParts } = __mod_market;
+// Both sources update slowly and ask for light polling — cache 30 min.
+const TTL = 30 * 60e3;
+async function cachedJSON(key, url) {
+  const k = `ttt.cache.${key}`;
+  try {
+    const c = JSON.parse(localStorage.getItem(k) || 'null');
+    if (c && Date.now() - c.t < TTL) return c.v;
+  } catch { /* ignore */ }
+  const v = await fetchJSON(url, { timeoutMs: 12000 });
+  try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), v })); } catch { /* quota */ }
+  return v;
+}
+
+// --- trading-day helpers (ET calendar dates, weekends skipped) ---
+function shiftWeekday(dateStr, dir) {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  do d.setUTCDate(d.getUTCDate() + dir); while ([0, 6].includes(d.getUTCDay()));
+  return d.toISOString().slice(0, 10);
+}
+function todayTradingDate() {
+  const p = etParts(Date.now());
+  const d = new Date(`${p.date}T12:00:00Z`);
+  // after 18:00 ET the "trading day" is tomorrow; weekends roll to Monday
+  if (p.h >= 18) d.setUTCDate(d.getUTCDate() + 1);
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+const capNum = (s) => Number(String(s || '').replace(/[^0-9.]/g, '')) || 0;
+const timeTag = (t) => t === 'time-pre-market' ? 'BMO' : t === 'time-after-hours' ? 'AMC' : 'TNS';
+
+async function loadEarnings(cfg) {
+  const today = todayTradingDate();
+  const prev = shiftWeekday(today, -1);
+  const next = shiftWeekday(today, 1);
+  const watch = new Set(cfg.earningsWatchlist.split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
+  const minCap = cfg.earningsMinCapB * 1e9;
+
+  const fetchDay = async (date) => {
+    const j = await cachedJSON(`earn.${date}`, `https://api.nasdaq.com/api/calendar/earnings?date=${date}`);
+    return (j?.data?.rows || []).map(r => ({
+      sym: r.symbol, name: r.name, cap: capNum(r.marketCap), when: timeTag(r.time), date,
+      eps: r.epsForecast || '—', ests: r.noOfEsts || '', ly: r.lastYearEPS || '—', fq: r.fiscalQuarterEnding || '',
+      watch: watch.has(r.symbol),
+    }));
+  };
+
+  const [p, t, n] = await Promise.allSettled([prev, today, next].map(fetchDay));
+  const keep = (rows) => (rows.status === 'fulfilled' ? rows.value : [])
+    .filter(r => r.watch || r.cap >= minCap)
+    .sort((a, b) => b.cap - a.cap);
+
+  const groups = [
+    { title: `Reacting today — ${prev} after close`, rows: keep(p).filter(r => r.when === 'AMC') },
+    { title: `Today ${today} — before open`, rows: keep(t).filter(r => r.when !== 'AMC') },
+    { title: `Today ${today} — after close`, rows: keep(t).filter(r => r.when === 'AMC') },
+    { title: `Next ${next} — before open`, rows: keep(n).filter(r => r.when !== 'AMC') },
+  ];
+  const ok = [p, t, n].some(x => x.status === 'fulfilled');
+  if (!ok) throw new Error(p.reason?.message || 'earnings unavailable');
+  return { groups, today };
+}
+
+const IMPACT_RANK = { Low: 1, Medium: 2, High: 3, Holiday: 0 };
+
+async function loadCalendar(cfg) {
+  const rows = await cachedJSON('ffcal', 'https://nfs.faireconomy.media/ff_calendar_thisweek.json');
+  const cur = cfg.calendarCurrencies.toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+  const min = IMPACT_RANK[cfg.calendarMinImpact] ?? 3;
+  return rows
+    .filter(r => (cur.includes('ALL') || cur.includes(r.country)) && (IMPACT_RANK[r.impact] ?? 0) >= min)
+    .map(r => ({ ...r, t: Date.parse(r.date) }))
+    .sort((a, b) => a.t - b.t);
+}
+
+return { loadEarnings, loadCalendar };
+})();
+
+// ===== widgets.js =====
+const __mod_widgets = (() => {
+// TradingView embeds (free, real-time streaming widgets).
+// https://www.tradingview.com/widget-docs/
+
+const BASE = 'https://s3.tradingview.com/external-embedding/embed-widget-';
+
+function mountTV(host, kind, config) {
+  if (!host) return;
+  host.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'tradingview-widget-container';
+  wrap.style.cssText = 'width:100%;height:100%';
+  const inner = document.createElement('div');
+  inner.className = 'tradingview-widget-container__widget';
+  inner.style.cssText = 'width:100%;height:100%';
+  const s = document.createElement('script');
+  s.src = `${BASE}${kind}.js`;
+  s.async = true;
+  s.type = 'text/javascript';
+  s.textContent = JSON.stringify(config);
+  wrap.append(inner, s);
+  host.append(wrap);
+}
+
+function tickerTape(host, cfg) {
+  const symbols = [
+    ...cfg.instruments.filter(i => i.tv).map(i => ({ proName: i.tv, title: i.label })),
+    { proName: 'CBOE:VIX', title: 'VIX' },
+    { proName: 'TVC:DXY', title: 'DXY' },
+    { proName: 'TVC:US10Y', title: 'US10Y' },
+    { proName: 'FX:EURUSD', title: 'EURUSD' },
+    { proName: 'FX:USDJPY', title: 'USDJPY' },
+  ];
+  mountTV(host, 'ticker-tape', {
+    symbols, showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: 'dark', locale: 'en',
+  });
+}
+
+function heatmap(host, cfg) {
+  mountTV(host, 'stock-heatmap', {
+    exchanges: [], dataSource: cfg.heatmapSource, grouping: 'sector', blockSize: 'market_cap_basic',
+    blockColor: 'change', locale: 'en', symbolUrl: '', colorTheme: 'dark', hasTopBar: true,
+    isDataSetEnabled: true, isZoomEnabled: true, hasSymbolTooltip: true, isMonoSize: false,
+    width: '100%', height: '100%',
+  });
+}
+
+function chart(host, symbol, cfg) {
+  mountTV(host, 'advanced-chart', {
+    autosize: true, symbol, interval: cfg.chartInterval, timezone: 'America/New_York', theme: 'dark',
+    style: '1', locale: 'en', backgroundColor: 'rgba(0,0,0,1)', gridColor: 'rgba(40,40,40,0.6)',
+    allow_symbol_change: true, hide_side_toolbar: true, calendar: false, withdateranges: true,
+    studies: ['STD;VWAP'], support_host: 'https://www.tradingview.com',
+  });
+}
+
+function econCalendar(host) {
+  mountTV(host, 'events', {
+    colorTheme: 'dark', isTransparent: true, width: '100%', height: '100%', locale: 'en',
+    importanceFilter: '0,1', countryFilter: 'us',
+  });
+}
+
+function newsTimeline(host) {
+  mountTV(host, 'timeline', {
+    feedMode: 'market', market: 'index', isTransparent: true, displayMode: 'regular',
+    width: '100%', height: '100%', colorTheme: 'dark', locale: 'en',
+  });
+}
+
+return { mountTV, tickerTape, heatmap, chart, econCalendar, newsTimeline };
+})();
+
+// ===== ai.js =====
+const __mod_ai = (() => {
+// Optional AI pre-market brief. Uses YOUR Anthropic API key, stored only in
+// this browser's localStorage and sent only to api.anthropic.com.
+
+let sdk;
+async function client(key) {
+  sdk ||= (await import('https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk/+esm')).default;
+  return new sdk({ apiKey: key, dangerouslyAllowBrowser: true });
+}
+
+const SYSTEM = `You are the morning desk strategist for an intraday index-futures trader (ES, NQ, RTY; also watches CL, GC, SI, BTC).
+Write a tight pre-market brief from the data provided. Use only the data given; do not invent prices, levels or events.
+Format (plain text, short lines, no tables):
+BIAS: one line (risk-on/off/mixed + why).
+OVERNIGHT: 3-5 bullets on what moved markets overnight and why it matters for US index futures.
+FUTURES: one line per instrument: trend over the 4h/8h windows and the key levels to watch (ON high/low, prior-day high/low, VWAP).
+CATALYSTS TODAY: scheduled data/Fed speakers/earnings with ET times.
+PLAYBOOK: 2-4 bullets of if/then scenarios using the levels above.
+Keep it under 350 words.`;
+
+async function aiBrief(cfg, context) {
+  if (!cfg.anthropicKey) throw new Error('Add your Anthropic API key in Settings (S) to enable AI briefs.');
+  const anthropic = await client(cfg.anthropicKey);
+  const msg = await anthropic.beta.messages.create({
+    model: cfg.aiModel || 'claude-opus-5-5',
+    max_tokens: 16000,
+    output_config: { effort: 'low' },
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    system: SYSTEM,
+    messages: [{ role: 'user', content: context }],
+  });
+  if (msg.stop_reason === 'refusal') throw new Error('The model declined this request.');
+  return msg.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+}
+
+return { aiBrief };
+})();
+
+// ===== app.js =====
+const __mod_app = (() => {
+const { loadSettings, saveSettings, resetSettings, fmt, parse, DEFAULTS } = __mod_config;
+const { configureNet, netStats, pool } = __mod_net;
+const { loadInstrument, loadQuote, analyze, narrate, riskTone, nf, sgn, etParts, etTime } = __mod_market;
+const { loadNews, overnightStart } = __mod_news;
+const { loadEarnings, loadCalendar } = __mod_events;
+const TV = __mod_widgets;
+const { aiBrief } = __mod_ai;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeUrl = (u) => /^https?:\/\//i.test(u) ? u : '#';
+
+let cfg = loadSettings();
+configureNet(cfg);
+
+const state = {
+  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [],
+  selected: 0, newsTab: 'HIGH IMPACT', newsQuery: '', seenLinks: new Set(), ai: '', errors: {},
+  updated: {}, busy: false,
+};
+
+// ---------------------------------------------------------------- clock & session
+function sessionState(now = Date.now()) {
+  const p = etParts(now), m = p.h * 60 + p.min, wd = p.wd;
+  const weekend = wd === 'Sat' || (wd === 'Sun' && p.h < 18) || (wd === 'Fri' && p.h >= 17);
+  if (weekend) return { cls: 'closed', text: 'GLOBEX CLOSED · WEEKEND' };
+  if (p.h === 17) return { cls: 'closed', text: 'DAILY HALT · reopens 18:00' };
+  if (m >= 570 && m < 960) {
+    const left = 960 - m;
+    return { cls: 'rth', text: `RTH OPEN · close in ${Math.floor(left / 60)}h${String(left % 60).padStart(2, '0')}` };
+  }
+  if (m >= 240 && m < 570) {
+    const left = 570 - m;
+    return { cls: 'globex', text: `PRE-MARKET · cash open in ${Math.floor(left / 60)}h${String(left % 60).padStart(2, '0')}` };
+  }
+  return { cls: 'globex', text: m >= 960 && m < 1020 ? 'POST-CLOSE · Globex' : 'GLOBEX OVERNIGHT' };
+}
+
+function tickClock() {
+  const now = Date.now();
+  $('#clock').textContent = new Date(now).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false }) + ' ET';
+  const s = sessionState(now);
+  const pill = $('#session');
+  pill.className = `pill ${s.cls}`;
+  pill.textContent = s.text;
+  const nxt = state.calendar.find(e => e.t > now - 60e3);
+  if (nxt) {
+    const mins = Math.round((nxt.t - now) / 60e3);
+    const when = mins < 0 ? 'NOW' : mins < 90 ? `in ${mins}m` : mins < 48 * 60 ? `in ${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : new Date(nxt.t).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' });
+    $('#nextEvent').textContent = `▲ ${nxt.country} ${nxt.title} ${when}`;
+  } else $('#nextEvent').textContent = '';
+}
+
+// ---------------------------------------------------------------- helpers
+function spark(points, { w = 110, h = 26, base, color } = {}) {
+  const ys = points.filter(v => v != null && isFinite(v));
+  if (ys.length < 2) return '';
+  let min = Math.min(...ys), max = Math.max(...ys);
+  if (base != null && isFinite(base)) { min = Math.min(min, base); max = Math.max(max, base); }
+  const rng = max - min || 1;
+  const X = (i) => (i / (ys.length - 1)) * (w - 2) + 1;
+  const Y = (v) => h - 2 - ((v - min) / rng) * (h - 4);
+  const d = ys.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+  const up = ys.at(-1) >= (base ?? ys[0]);
+  const c = color || (up ? 'var(--up)' : 'var(--dn)');
+  const baseLine = base != null ? `<line x1="0" x2="${w}" y1="${Y(base).toFixed(1)}" y2="${Y(base).toFixed(1)}" stroke="#444" stroke-dasharray="2 2"/>` : '';
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${baseLine}<path d="${d}L${X(ys.length - 1)},${h}L1,${h}Z" fill="${c}" opacity=".12"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.3"/></svg>`;
+}
+const cls = (x) => x > 0 ? 'up' : x < 0 ? 'dn' : '';
+const fmtAgo = (t) => {
+  const m = Math.round((Date.now() - t) / 60e3);
+  return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h` : `${Math.floor(m / 1440)}d`;
+};
+function setStatus(text, kind = '') { const el = $('#status'); el.textContent = text; el.className = `status ${kind}`; }
+
+// ---------------------------------------------------------------- loaders
+async function refreshTrend() {
+  const res = await pool(cfg.instruments, 4, async (inst) => analyze(inst, await loadInstrument(inst), cfg));
+  state.trend = []; state.trendErr = {};
+  res.forEach((r, i) => r.ok ? state.trend.push(r.value) : (state.trendErr[cfg.instruments[i].label] = r.error.message));
+  state.updated.trend = Date.now();
+}
+async function refreshQuotes() {
+  const res = await pool(cfg.indices, 4, loadQuote);
+  state.quotes = res.map((r, i) => r.ok ? r.value : { ...cfg.indices[i], err: r.error.message });
+  state.updated.quotes = Date.now();
+}
+async function refreshNews() {
+  const { items, failed } = await loadNews(cfg);
+  if (!state.news.length) items.forEach(i => state.seenLinks.add(i.link));
+  for (const it of items) it.isNew = !state.seenLinks.has(it.link);
+  items.forEach(i => state.seenLinks.add(i.link));
+  state.news = items; state.newsFailed = failed; state.updated.news = Date.now();
+}
+async function refreshEarnings() { state.earnings = await loadEarnings(cfg); state.updated.earnings = Date.now(); }
+async function refreshCalendar() { state.calendar = await loadCalendar(cfg); state.updated.calendar = Date.now(); }
+
+async function refreshAll() {
+  if (state.busy) return;
+  state.busy = true;
+  $('#btnRefresh').classList.add('spin');
+  setStatus('Refreshing…', 'busy');
+  const jobs = {
+    trend: [refreshTrend, renderTrend],
+    quotes: [refreshQuotes, renderIndices],
+    news: [refreshNews, renderNews],
+    calendar: [refreshCalendar, renderCalendar],
+    earnings: [refreshEarnings, renderEarnings],
+  };
+  await Promise.all(Object.entries(jobs).map(async ([k, [load, render]]) => {
+    try { await load(); delete state.errors[k]; }
+    catch (e) { state.errors[k] = e.message; console.warn(k, e); }
+    try { render(); } catch (e) { console.error('render', k, e); }
+    renderBrief();
+  }));
+  state.busy = false;
+  $('#btnRefresh').classList.remove('spin');
+  const errs = Object.keys(state.errors);
+  setStatus(errs.length ? `Updated ${etTime(Date.now())} · issues: ${errs.join(', ')}` : `Updated ${etTime(Date.now())} ET`, errs.length ? 'err' : '');
+  renderStatusbar();
+  tickClock();
+}
+
+// ---------------------------------------------------------------- renderers
+function renderTrend() {
+  const [w1, w2] = cfg.trendHours;
+  const head = `<tr><th>SYM</th><th>LAST</th><th>CHG</th><th>%</th>
+    ${cfg.trendHours.map(h => `<th>${h}H</th>`).join('')}
+    <th style="text-align:left">REGIME ${cfg.trendHours.map(h => h + 'h').join(' / ')}</th>
+    <th>ON H / L</th><th>PD H / L</th><th>VWAP</th><th>${Math.max(...cfg.trendHours)}H</th></tr>`;
+  const rows = cfg.instruments.map((inst, idx) => {
+    const a = state.trend.find(t => t.inst.label === inst.label);
+    if (!a) {
+      const err = state.trendErr[inst.label];
+      return `<tr class="row" data-i="${idx}"><td class="sym">${esc(inst.label)}</td><td colspan="10" class="${err ? 'dn' : 'skeleton'}" style="text-align:left">${err ? 'data unavailable — ' + esc(err) : 'loading…'}</td></tr>`;
+    }
+    const dp = inst.dp;
+    const winCells = cfg.trendHours.map(h => {
+      const w = a.windows[h];
+      return w ? `<td class="${cls(w.net)}">${sgn(w.pct)}%</td>` : '<td>—</td>';
+    }).join('');
+    const regime = cfg.trendHours.map(h => {
+      const w = a.windows[h];
+      return w ? `<span class="tag ${w.tone}" title="ER ${w.er.toFixed(2)} · ${esc(w.structure)}">${w.regime}</span>` : '';
+    }).join(' ');
+    const lvl = (hi, lo) => {
+      if (hi == null) return '—';
+      const brk = a.last > hi ? ' brk' : a.last < lo ? ' brk' : '';
+      return `<span class="lvl${brk}"><b>${nf(hi, dp)}</b> / <b>${nf(lo, dp)}</b></span>`;
+    };
+    const vw = a.vwap ? `<span class="${a.last >= a.vwap ? 'up' : 'dn'}">${nf(a.vwap, dp)}</span>` : '—';
+    return `<tr class="row ${idx === state.selected ? 'sel' : ''}" data-i="${idx}" title="${esc(inst.name)}">
+      <td class="sym">${esc(inst.label)}<small>${idx + 1}</small></td>
+      <td class="last ${a.stale ? 'stale' : ''}" title="as of ${etTime(a.lastT)} ET">${nf(a.last, dp)}</td>
+      <td class="${cls(a.chg)}">${sgn(a.chg, dp)}</td>
+      <td class="${cls(a.pct)}">${sgn(a.pct)}%</td>
+      ${winCells}
+      <td style="text-align:left">${regime}</td>
+      <td>${lvl(a.onh, a.onl)}</td>
+      <td>${lvl(a.pdh, a.pdl)}</td>
+      <td>${vw}</td>
+      <td>${spark(a.spark.map(b => b.c), { base: a.priorClose })}</td>
+    </tr>`;
+  }).join('');
+  $('#trendTable').innerHTML = `<thead>${head}</thead><tbody>${rows}</tbody>`;
+  $('#trendSub').textContent = state.updated.trend ? `5m bars · upd ${etTime(state.updated.trend)}` : '';
+  $('#trendWindows').innerHTML = [[4, 8], [2, 6], [4, 12], [8, 24]].map(([a, b]) =>
+    `<button class="mini ${a === w1 && b === w2 ? 'on' : ''}" data-win="${a},${b}">${a}/${b}H</button>`).join('');
+  renderTrendDetail();
+}
+
+function renderTrendDetail() {
+  const inst = cfg.instruments[state.selected];
+  const a = inst && state.trend.find(t => t.inst.label === inst.label);
+  if (!a) { $('#trendDetail').innerHTML = '<span class="dim">Select an instrument (click a row or press 1–9).</span>'; return; }
+  const dp = inst.dp;
+  const lines = narrate(a).map(l => `<p>${esc(l)}</p>`).join('');
+  const w = a.windows[Math.max(...cfg.trendHours)];
+  const rangeBar = w ? `<span class="rangebar" title="position in ${Math.max(...cfg.trendHours)}h range"><i style="left:calc(${(w.pos * 100).toFixed(0)}% - 1px)"></i></span>` : '';
+  $('#trendDetail').innerHTML = `<h4>${esc(inst.label)} · ${esc(inst.name)} · ${nf(a.last, dp)} <span class="${cls(a.chg)}">${sgn(a.chg, dp)} (${sgn(a.pct)}%)</span> ${rangeBar}
+    <span class="dim" style="font-weight:400"> vs prior settle ${nf(a.priorClose, dp)}${a.stale ? ' · market closed / stale' : ''}</span></h4>${lines}`;
+}
+
+function renderIndices() {
+  $('#indices').innerHTML = `<div class="tiles">${state.quotes.map(q => q.err
+    ? `<div class="tile"><div class="l">${esc(q.label)}</div><div class="dn" style="font-size:11px">unavailable</div></div>`
+    : `<div class="tile"><div class="l"><span>${esc(q.label)}</span><span class="dim" style="font-weight:400">${q.t ? etTime(q.t) : ''}</span></div>
+        <div class="v">${nf(q.last, q.dp)}</div>
+        <div class="c ${cls(q.chg)}">${sgn(q.chg, q.dp)} (${sgn(q.pct)}%)</div>
+        ${spark(q.closes, { w: 150, h: 22, base: q.prev })}</div>`).join('')}</div>`;
+}
+
+function newsFilterItems() {
+  const tab = state.newsTab, q = state.newsQuery.toLowerCase();
+  const since = overnightStart(cfg);
+  let list = state.news;
+  if (tab === 'HIGH IMPACT') list = list.filter(i => i.high);
+  else if (tab === 'OVERNIGHT') list = list.filter(i => i.t >= since).sort((a, b) => b.score - a.score);
+  else if (tab !== 'ALL' && tab !== 'TV LIVE') list = list.filter(i => i.tags.includes(tab));
+  if (q) list = list.filter(i => `${i.title} ${i.src} ${i.tags.join(' ')}`.toLowerCase().includes(q));
+  return list.slice(0, 200);
+}
+
+function renderNews() {
+  const since = overnightStart(cfg);
+  const tabs = ['HIGH IMPACT', 'OVERNIGHT', 'ALL', ...cfg.folders.map(f => f.name), 'TV LIVE'];
+  const count = (t) => t === 'ALL' ? state.news.length : t === 'HIGH IMPACT' ? state.news.filter(i => i.high).length
+    : t === 'OVERNIGHT' ? state.news.filter(i => i.t >= since).length : t === 'TV LIVE' ? '' : state.news.filter(i => i.tags.includes(t)).length;
+  $('#newsTabs').innerHTML = tabs.map(t => `<button data-tab="${esc(t)}" class="${t === state.newsTab ? 'on' : ''}">${esc(t)}<span class="n">${count(t)}</span></button>`).join('');
+  const tv = state.newsTab === 'TV LIVE';
+  $('#newsList').classList.toggle('hidden', tv);
+  $('#newsTV').classList.toggle('hidden', !tv);
+  if (tv) { if (!$('#newsTV').children.length) TV.newsTimeline($('#newsTV')); return; }
+
+  const today = etParts(Date.now()).date;
+  const items = newsFilterItems();
+  $('#newsList').innerHTML = items.length ? items.map(i => {
+    const d = etParts(i.t).date;
+    return `<div class="news-item ${i.high ? 'hi' : ''} ${i.isNew ? 'new' : ''}">
+      <div class="t">${etTime(i.t)}${d !== today ? `<span class="d">${new Date(i.t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}</span>` : ''}</div>
+      <div><a class="h" href="${esc(safeUrl(i.link))}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a>
+      <div class="meta">${i.high ? '<span class="flag">■ HIGH IMPACT</span>' : ''}<span class="src">${esc(i.src)}</span>
+        ${i.tags.map(t => `<span class="ft">#${esc(t)}</span>`).join('')}${i.dupes ? `<span>+${i.dupes} sources</span>` : ''}<span>${fmtAgo(i.t)} ago</span></div></div>
+    </div>`;
+  }).join('') : `<div class="msg ${state.errors.news ? 'err' : ''}">${state.errors.news ? 'News unavailable — ' + esc(state.errors.news) : state.updated.news ? 'No headlines match.' : '<span class="skeleton">loading feeds…</span>'}</div>`;
+  $('#newsSub').textContent = state.updated.news ? `${state.news.length} stories · ${cfg.feeds.length - state.newsFailed.length}/${cfg.feeds.length} feeds` : '';
+}
+
+function renderEarnings() {
+  const e = state.earnings;
+  if (!e) {
+    $('#earnings').innerHTML = `<div class="msg ${state.errors.earnings ? 'err' : ''}">${state.errors.earnings
+      ? `Earnings unavailable — ${esc(state.errors.earnings)}.<br>Nasdaq blocks most public proxies; deploy the free proxy in <code>terminal/proxy</code> for reliable data.`
+      : '<span class="skeleton">loading…</span>'}</div>`;
+    return;
+  }
+  const capFmt = (c) => c >= 1e12 ? `$${(c / 1e12).toFixed(2)}T` : c ? `$${(c / 1e9).toFixed(0)}B` : '—';
+  $('#earnSub').textContent = `≥ $${cfg.earningsMinCapB}B or watchlist`;
+  $('#earnings').innerHTML = e.groups.map(g => `<div class="egroup"><h5>${esc(g.title)}</h5>${g.rows.length
+    ? `<table class="tbl"><thead><tr><th>SYM</th><th style="text-align:left">COMPANY</th><th>MKT CAP</th><th>EPS EST</th><th>LY EPS</th><th>FQ</th></tr></thead><tbody>${g.rows.map(r =>
+      `<tr><td class="sym">${r.watch ? '<span class="star">★</span>' : ''}<a href="https://www.tradingview.com/symbols/${esc(r.sym)}/" target="_blank" rel="noopener">${esc(r.sym)}</a></td>
+        <td style="text-align:left;max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</td>
+        <td>${capFmt(r.cap)}</td><td>${esc(r.eps)}</td><td class="dim">${esc(r.ly)}</td><td class="dim">${esc(r.fq)}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="none">No market-moving reports.</div>'}</div>`).join('');
+}
+
+function renderCalendar(autoScroll = true) {
+  const now = Date.now();
+  const today = etParts(now).date;
+  $('#calSub').textContent = `${cfg.calendarCurrencies} · ${cfg.calendarMinImpact}+ impact · times ET`;
+  if (!state.calendar.length) {
+    $('#calendar').innerHTML = `<div class="msg ${state.errors.calendar ? 'err' : ''}">${state.errors.calendar ? 'Calendar unavailable — ' + esc(state.errors.calendar) + ' (TradingView tab still works).' : state.updated.calendar ? 'No events this week at this impact level.' : '<span class="skeleton">loading…</span>'}</div>`;
+    return;
+  }
+  $('#calendar').innerHTML = `<table class="tbl"><thead><tr><th>DAY</th><th>TIME</th><th style="text-align:left">EVENT</th><th>FCST</th><th>PREV</th><th>IN</th></tr></thead><tbody>${state.calendar.map(e => {
+    const p = etParts(e.t);
+    const mins = Math.round((e.t - now) / 60e3);
+    const rowCls = [mins < -5 ? 'past' : '', mins >= -5 && mins < 120 ? 'soon' : '', p.date === today ? 'today' : ''].join(' ');
+    const until = mins < -5 ? 'done' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : `${Math.floor(mins / 1440)}d`;
+    return `<tr class="cal-row ${rowCls}"><td>${p.wd}</td><td>${etTime(e.t)}</td>
+      <td style="text-align:left"><span class="impact ${esc(e.impact)}"></span>${esc(e.country)} ${esc(e.title)}</td>
+      <td>${esc(e.forecast || '—')}</td><td class="dim">${esc(e.previous || '—')}</td><td>${until}</td></tr>`;
+  }).join('')}</tbody></table>`;
+  const firstUp = $('#calendar .cal-row:not(.past)');
+  if (firstUp && autoScroll) $('#calendar').scrollTop = Math.max(0, firstUp.offsetTop - 40);
+}
+
+// ---------------------------------------------------------------- overnight brief
+function briefData() {
+  const now = Date.now();
+  const since = overnightStart(cfg, now);
+  const overnight = state.news.filter(i => i.t >= since);
+  const tone = riskTone(state.trend);
+  const themes = cfg.folders.map(f => {
+    const items = overnight.filter(i => i.tags.includes(f.name)).sort((a, b) => b.score - a.score);
+    return { name: f.name, items, weight: items.reduce((s, i) => s + Math.max(i.score, 0.5), 0) };
+  }).filter(t => t.items.length).sort((a, b) => b.weight - a.weight);
+  const top = [...overnight].sort((a, b) => b.score - a.score).slice(0, 6);
+  const todayET = etParts(now).date;
+  const events = state.calendar.filter(e => etParts(e.t).date === todayET || (e.t > now && e.t - now < 24 * 3600e3));
+  const earn = state.earnings?.groups.filter(g => /Reacting|before open/.test(g.title) && !/^Next/.test(g.title))
+    .flatMap(g => g.rows.slice(0, 8).map(r => `${r.sym}${g.title.startsWith('Reacting') ? ' (AMC)' : ' (BMO)'}`)) || [];
+  return { since, overnight, tone, themes, top, events, earn };
+}
+
+function futuresLine(a) {
+  const dp = a.inst.dp;
+  const ws = cfg.trendHours.map(h => a.windows[h] ? `${h}h ${sgn(a.windows[h].pct)}% ${a.windows[h].regime.toLowerCase()}` : '').filter(Boolean).join(' · ');
+  let pos = '';
+  if (a.onh != null) pos = a.last > a.onh ? '> ONH' : a.last < a.onl ? '< ONL' : 'in ON rng';
+  if (a.pdh != null) pos += a.last > a.pdh ? ' · > PDH' : a.last < a.pdl ? ' · < PDL' : '';
+  if (a.vwap) pos += a.last >= a.vwap ? ' · > VWAP' : ' · < VWAP';
+  return { label: a.inst.label, last: nf(a.last, dp), pct: a.pct, ws, pos };
+}
+
+function renderBrief() {
+  const b = briefData();
+  const sinceTxt = new Date(b.since).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' });
+  const toneCls = b.tone ? (b.tone.tone.includes('ON') ? 'up' : b.tone.tone.includes('OFF') ? 'dn' : 'amber') : '';
+  const fl = state.trend.map(futuresLine);
+  const html = `
+    ${state.ai ? `<h5>AI BRIEF</h5><div class="ai-out">${esc(state.ai)}</div>` : ''}
+    <h5>TONE</h5>
+    <div class="toneline ${toneCls}">${b.tone ? `${b.tone.tone} <span class="dim" style="font-weight:400">equity futures avg ${sgn(b.tone.avg)}% vs settle</span>` : '<span class="skeleton">waiting for prices…</span>'}</div>
+    <h5>FUTURES · ${cfg.trendHours.join('h / ')}h TRENDS</h5>
+    ${fl.map(f => `<div class="fline"><span class="sym">${esc(f.label)}</span> ${f.last} <span class="${cls(f.pct)}">${sgn(f.pct)}%</span> <span class="dim">· ${esc(f.ws)} · ${esc(f.pos)}</span></div>`).join('') || '<div class="dim">—</div>'}
+    <h5>OVERNIGHT NEWS · since ${sinceTxt} ET · ${b.overnight.length} stories, ${b.overnight.filter(i => i.high).length} high-impact</h5>
+    <ul>${b.top.map(i => `<li><span class="dim">${etTime(i.t)}</span> <a href="${esc(safeUrl(i.link))}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a> <span class="dim">— ${esc(i.src)}</span></li>`).join('') || '<li class="dim">No overnight headlines loaded yet.</li>'}</ul>
+    <h5>THEMES</h5>
+    ${b.themes.slice(0, 5).map(t => `<div class="theme"><b>${esc(t.name)}</b> <span class="dim">(${t.items.length})</span> — <span class="dim">${t.items.slice(0, 2).map(i => esc(i.title)).join(' · ')}</span></div>`).join('') || '<div class="dim">—</div>'}
+    <h5>CATALYSTS · NEXT 24H</h5>
+    <ul>${b.events.map(e => `<li><span class="impact ${esc(e.impact)}"></span>${new Date(e.t).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })} ${esc(e.country)} ${esc(e.title)}${e.forecast ? ` <span class="dim">f ${esc(e.forecast)} / p ${esc(e.previous)}</span>` : ''}</li>`).join('') || '<li class="dim">No high-impact data scheduled.</li>'}
+    ${b.earn.length ? `<li>Earnings: ${esc(b.earn.join(', '))}</li>` : ''}</ul>`;
+  $('#brief').innerHTML = `<div class="brief">${html}</div>`;
+}
+
+function briefText() {
+  const b = briefData();
+  const L = [];
+  L.push(`TTT OVERNIGHT BRIEF — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
+  if (b.tone) L.push(`Tone: ${b.tone.tone} (equity futures avg ${sgn(b.tone.avg)}%)`);
+  L.push('', 'FUTURES:');
+  for (const a of state.trend) {
+    L.push(`${a.inst.label} ${nf(a.last, a.inst.dp)} (${sgn(a.pct)}% vs settle ${nf(a.priorClose, a.inst.dp)})`);
+    narrate(a).forEach(n => L.push(`   ${n}`));
+  }
+  L.push('', `OVERNIGHT HEADLINES (since ${new Date(b.since).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET):`);
+  [...b.overnight].sort((x, y) => y.score - x.score).slice(0, 25)
+    .forEach(i => L.push(`- ${etTime(i.t)} [${i.src}]${i.tags.length ? ' {' + i.tags.join(', ') + '}' : ''} ${i.title}`));
+  L.push('', 'SCHEDULED (ET):');
+  b.events.forEach(e => L.push(`- ${new Date(e.t).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })} ${e.country} ${e.title} (impact ${e.impact}; fcst ${e.forecast || 'n/a'}, prev ${e.previous || 'n/a'})`));
+  if (state.earnings) state.earnings.groups.forEach(g => g.rows.length && L.push(`- Earnings ${g.title}: ${g.rows.slice(0, 12).map(r => r.sym).join(', ')}`));
+  return L.join('\n');
+}
+
+async function runAI() {
+  const btn = $('#btnAI');
+  btn.textContent = 'THINKING…'; btn.disabled = true;
+  try {
+    state.ai = await aiBrief(cfg, briefText());
+  } catch (e) {
+    state.ai = `AI brief failed: ${e.message}`;
+  } finally {
+    btn.textContent = 'AI BRIEF'; btn.disabled = false;
+    renderBrief();
+    $('#brief').scrollTop = 0;
+  }
+}
+
+function renderStatusbar() {
+  const bits = [
+    `Data route: ${netStats.lastRoute || '—'}${cfg.proxyUrl ? '' : ' (no private proxy configured)'}`,
+    `Requests ok ${netStats.ok} / failed ${netStats.fail}`,
+  ];
+  if (state.newsFailed.length) bits.push(`<span class="err">Feeds down: ${esc(state.newsFailed.join(', '))}</span>`);
+  for (const [k, v] of Object.entries(state.errors)) bits.push(`<span class="err">${k}: ${esc(v)}</span>`);
+  bits.push('Futures/quotes via Yahoo Finance & Coinbase (may be delayed) · Heat map, chart & tape via TradingView · Calendar via ForexFactory · Earnings via Nasdaq · Not investment advice');
+  $('#statusbar').innerHTML = bits.map(b => `<span>${b}</span>`).join('');
+}
+
+// ---------------------------------------------------------------- widgets
+function selectInstrument(i) {
+  if (i < 0 || i >= cfg.instruments.length) return;
+  state.selected = i;
+  $$('#trendTable tr.row').forEach(r => r.classList.toggle('sel', +r.dataset.i === i));
+  renderTrendDetail();
+  const inst = cfg.instruments[i];
+  if (cfg.panels.chart && inst.tv) {
+    TV.chart($('#chart'), inst.tv, cfg);
+    $('#chartSym').textContent = `${inst.label} · ${inst.tv}`;
+    $$('#chartTabs .mini').forEach(b => b.classList.toggle('on', +b.dataset.i === i));
+  }
+}
+
+function mountWidgets() {
+  TV.tickerTape($('#tape'), cfg);
+  if (cfg.panels.heatmap) TV.heatmap($('#heatmap'), cfg);
+  $('#chartTabs').innerHTML = cfg.instruments.map((inst, i) => inst.tv ? `<button class="mini" data-i="${i}">${esc(inst.label)}</button>` : '').join('');
+  selectInstrument(state.selected);
+  $('#newsTV').innerHTML = '';
+  if (!$('#calendarTV').classList.contains('hidden')) TV.econCalendar($('#calendarTV'));
+  else $('#calendarTV').innerHTML = '';
+}
+
+function applyPanels() {
+  $$('[data-panel]').forEach(p => p.classList.toggle('hidden', !cfg.panels[p.dataset.panel]));
+}
+
+// ---------------------------------------------------------------- settings
+function openSettings() {
+  const f = $('#settingsForm');
+  f.proxyUrl.value = cfg.proxyUrl;
+  f.usePublicProxies.checked = cfg.usePublicProxies;
+  f.trendHours.value = cfg.trendHours.join(', ');
+  f.overnightStartHourET.value = cfg.overnightStartHourET;
+  f.chartInterval.value = cfg.chartInterval;
+  f.instruments.value = fmt.instruments(cfg.instruments);
+  f.indices.value = fmt.indices(cfg.indices);
+  f.feeds.value = fmt.feeds(cfg.feeds);
+  f.folders.value = fmt.folders(cfg.folders);
+  f.impactKeys.value = cfg.impactKeys;
+  f.earningsMinCapB.value = cfg.earningsMinCapB;
+  f.earningsWatchlist.value = cfg.earningsWatchlist;
+  f.calendarCurrencies.value = cfg.calendarCurrencies;
+  f.calendarMinImpact.value = cfg.calendarMinImpact;
+  f.anthropicKey.value = cfg.anthropicKey;
+  f.aiModel.value = cfg.aiModel;
+  $('#panelChecks').innerHTML = Object.keys(DEFAULTS.panels).map(k =>
+    `<label><input type="checkbox" name="panel_${k}" ${cfg.panels[k] ? 'checked' : ''}> ${k}</label>`).join('');
+  $('#settings').showModal();
+}
+
+function readSettingsForm() {
+  const f = $('#settingsForm');
+  const hours = f.trendHours.value.split(/[ ,]+/).map(Number).filter(h => h > 0 && h <= 72).slice(0, 2);
+  const next = {
+    ...cfg,
+    proxyUrl: f.proxyUrl.value.trim(),
+    usePublicProxies: f.usePublicProxies.checked,
+    trendHours: hours.length === 2 ? hours : DEFAULTS.trendHours,
+    overnightStartHourET: Math.min(23, Math.max(0, +f.overnightStartHourET.value || 16)),
+    chartInterval: f.chartInterval.value,
+    instruments: parse.instruments(f.instruments.value),
+    indices: parse.indices(f.indices.value),
+    feeds: parse.feeds(f.feeds.value),
+    folders: parse.folders(f.folders.value),
+    impactKeys: f.impactKeys.value.trim(),
+    earningsMinCapB: Math.max(0, +f.earningsMinCapB.value || 0),
+    earningsWatchlist: f.earningsWatchlist.value.trim(),
+    calendarCurrencies: f.calendarCurrencies.value.trim() || 'USD',
+    calendarMinImpact: f.calendarMinImpact.value,
+    anthropicKey: f.anthropicKey.value.trim(),
+    aiModel: f.aiModel.value.trim() || DEFAULTS.aiModel,
+    panels: Object.fromEntries(Object.keys(DEFAULTS.panels).map(k => [k, f[`panel_${k}`].checked])),
+  };
+  if (!next.instruments.length) next.instruments = DEFAULTS.instruments;
+  return next;
+}
+
+function applyNewSettings(next) {
+  cfg = next;
+  saveSettings(cfg);
+  configureNet(cfg);
+  state.selected = Math.min(state.selected, cfg.instruments.length - 1);
+  state.trend = []; state.ai = '';
+  applyPanels();
+  mountWidgets();
+  setupAuto();
+  refreshAll();
+}
+
+// ---------------------------------------------------------------- auto refresh
+let autoTimer;
+function setupAuto() {
+  clearInterval(autoTimer);
+  $('#autoRefresh').value = String(cfg.autoRefreshSec);
+  if (cfg.autoRefreshSec > 0) autoTimer = setInterval(() => { if (!document.hidden) refreshAll(); }, cfg.autoRefreshSec * 1000);
+}
+
+// ---------------------------------------------------------------- events
+function bind() {
+  $('#btnRefresh').onclick = (e) => { if (e.shiftKey) mountWidgets(); refreshAll(); };
+  $('#btnSettings').onclick = openSettings;
+  $('#btnHelp').onclick = () => $('#help').showModal();
+  $('#btnAI').onclick = runAI;
+  $('#btnCopyBrief').onclick = async () => {
+    const txt = (state.ai ? `AI BRIEF:\n${state.ai}\n\n` : '') + briefText();
+    try { await navigator.clipboard.writeText(txt); $('#btnCopyBrief').textContent = 'COPIED'; }
+    catch { $('#btnCopyBrief').textContent = 'FAILED'; }
+    setTimeout(() => ($('#btnCopyBrief').textContent = 'COPY'), 1500);
+  };
+  $('#autoRefresh').onchange = (e) => { cfg.autoRefreshSec = +e.target.value; saveSettings(cfg); setupAuto(); };
+  $('#heatSrc').value = cfg.heatmapSource;
+  $('#heatSrc').onchange = (e) => { cfg.heatmapSource = e.target.value; saveSettings(cfg); TV.heatmap($('#heatmap'), cfg); };
+
+  $('#trendTable').onclick = (e) => { const r = e.target.closest('tr.row'); if (r) selectInstrument(+r.dataset.i); };
+  $('#trendWindows').onclick = (e) => {
+    const b = e.target.closest('[data-win]'); if (!b) return;
+    cfg.trendHours = b.dataset.win.split(',').map(Number); saveSettings(cfg);
+    refreshAll();
+  };
+  $('#chartTabs').onclick = (e) => { const b = e.target.closest('[data-i]'); if (b) selectInstrument(+b.dataset.i); };
+  $('#newsTabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) { state.newsTab = b.dataset.tab; renderNews(); } };
+  $('#newsSearch').oninput = (e) => { state.newsQuery = e.target.value; renderNews(); };
+  $$('[data-cal]').forEach(b => b.onclick = () => {
+    const tv = b.dataset.cal === 'tv';
+    $$('[data-cal]').forEach(x => x.classList.toggle('on', x === b));
+    $('#calendar').classList.toggle('hidden', tv);
+    $('#calendarTV').classList.toggle('hidden', !tv);
+    if (tv && !$('#calendarTV').children.length) TV.econCalendar($('#calendarTV'));
+  });
+
+  const dlg = $('#settings');
+  dlg.addEventListener('close', () => { if (dlg.returnValue === 'save') applyNewSettings(readSettingsForm()); });
+  $('#btnReset').onclick = () => { if (confirm('Reset all settings to defaults?')) { dlg.close(); applyNewSettings(resetSettings()); } };
+  $('#btnExport').onclick = () => {
+    const blob = new Blob([JSON.stringify({ ...readSettingsForm(), anthropicKey: '' }, null, 2)], { type: 'application/json' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'ttt-terminal-settings.json' });
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  $('#btnImport').onclick = () => {
+    const inp = Object.assign(document.createElement('input'), { type: 'file', accept: 'application/json' });
+    inp.onchange = async () => {
+      try {
+        const data = JSON.parse(await inp.files[0].text());
+        const next = { ...structuredClone(DEFAULTS), ...data, panels: { ...DEFAULTS.panels, ...(data.panels || {}) }, anthropicKey: cfg.anthropicKey };
+        dlg.close(); applyNewSettings(next);
+      } catch (err) { alert(`Import failed: ${err.message}`); }
+    };
+    inp.click();
+  };
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
+    if (e.key === 'Escape' && document.activeElement === $('#newsSearch')) {
+      $('#newsSearch').value = ''; state.newsQuery = ''; $('#newsSearch').blur(); renderNews(); return;
+    }
+    if (typing || $('dialog[open]')) return;
+    if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (e.shiftKey) mountWidgets(); refreshAll(); }
+    else if (e.key === 's') { e.preventDefault(); openSettings(); }
+    else if (e.key === '?') $('#help').showModal();
+    else if (e.key === '/') { e.preventDefault(); $('#newsSearch').focus(); }
+    else if (e.key === 'h') { state.newsTab = 'HIGH IMPACT'; renderNews(); }
+    else if (e.key === 'a') runAI();
+    else if (/^[1-9]$/.test(e.key)) selectInstrument(+e.key - 1);
+  });
+}
+
+// ---------------------------------------------------------------- boot
+applyPanels();
+bind();
+mountWidgets();
+renderTrend(); renderNews(); renderEarnings(); renderCalendar(); renderIndices(); renderBrief(); renderStatusbar();
+tickClock();
+setInterval(tickClock, 1000);
+setInterval(() => { if (state.calendar.length) renderCalendar(false); }, 60e3);
+setupAuto();
+refreshAll();
+
+return {  };
+})();
+</script>
+</body>
+</html>

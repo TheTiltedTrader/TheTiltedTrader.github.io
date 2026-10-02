@@ -22,8 +22,11 @@ const ALLOWED_HOSTS = [
   'www.coindesk.com',
 ];
 
-// Lock the proxy to your site. Add http://localhost:8000 etc. for local testing.
+// Lock the proxy to your site. 'null' is what browsers send for a page opened
+// from a folder on your PC (TTT-Terminal.html via file://) — keep it if you use
+// the local file, remove it if you only use the hosted page.
 const ALLOWED_ORIGINS = [
+  'null',
   'https://thetiltedtrader.github.io',
   'https://thetiltedtraders.github.io',
   'http://localhost:8000',
@@ -41,7 +44,7 @@ const CACHE_SECONDS = {
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
-    const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+    const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : 'https://thetiltedtrader.github.io';
     const cors = {
       'Access-Control-Allow-Origin': allowOrigin,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',

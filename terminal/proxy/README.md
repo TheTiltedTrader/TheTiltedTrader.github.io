@@ -15,3 +15,6 @@ The worker:
 - only fetches from the allow-listed hosts in `ALLOWED_HOSTS`. Add a host there if you add a custom feed from another site.
 - only answers pages served from the origins in `ALLOWED_ORIGINS`. Add yours if you host the page somewhere else, for example a local file server.
 - caches quotes for 15–20 s and the calendar and earnings for 30 min, so a refresh stays fast and you stay far under the free tier's 100k requests/day.
+
+**Using the local file (`TTT-Terminal.html`)?** A page opened from a folder on your PC sends the origin `null`.
+`ALLOWED_ORIGINS` in `worker.js` already includes `null`, so the worker works with the local file without changes.
