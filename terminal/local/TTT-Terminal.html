@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>window.TTT_WORKER_SRC = "// TTT Terminal \u2014 private CORS proxy (Cloudflare Worker, free tier: 100k req/day)\n//\n// Deploy: Cloudflare dashboard \u2192 Workers & Pages \u2192 Create \u2192 \"Hello World\" worker\n// \u2192 Edit code \u2192 paste this file \u2192 Deploy. Then put the worker URL into the\n// terminal's Settings \u2192 \"Your CORS proxy URL\".\n//\n// Only hosts on the allow-list below can be fetched, so the worker can't be\n// abused as an open proxy. Add hosts here if you add custom feeds.\n\nconst ALLOWED_HOSTS = [\n  'query1.finance.yahoo.com', 'query2.finance.yahoo.com', 'finance.yahoo.com',\n  'api.nasdaq.com',\n  'nfs.faireconomy.media',\n  'api.exchange.coinbase.com',\n  'feeds.content.dowjones.io',\n  'search.cnbc.com', 'www.cnbc.com',\n  'www.investing.com',\n  'news.google.com',\n  'www.federalreserve.gov',\n  'oilprice.com',\n  'seekingalpha.com',\n  'www.coindesk.com',\n];\n\n// Lock the proxy to your site. 'null' is what browsers send for a page opened\n// from a folder on your PC (TTT-Terminal.html via file://) \u2014 keep it if you use\n// the local file, remove it if you only use the hosted page.\nconst ALLOWED_ORIGINS = [\n  'null',\n  'https://thetiltedtrader.github.io',\n  'https://thetiltedtraders.github.io',\n  'http://localhost:8000',\n  'http://127.0.0.1:8000',\n];\n\nconst CACHE_SECONDS = {\n  'query1.finance.yahoo.com': 20,\n  'query2.finance.yahoo.com': 20,\n  'api.exchange.coinbase.com': 15,\n  'api.nasdaq.com': 1800,\n  'nfs.faireconomy.media': 1800,\n};\n\nexport default {\n  async fetch(request, env, ctx) {\n    const origin = request.headers.get('Origin') || '';\n    const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : 'https://thetiltedtrader.github.io';\n    const cors = {\n      'Access-Control-Allow-Origin': allowOrigin,\n      'Access-Control-Allow-Methods': 'GET, OPTIONS',\n      'Access-Control-Allow-Headers': '*',\n      'Vary': 'Origin',\n    };\n    if (request.method === 'OPTIONS') return new Response(null, { headers: cors });\n    if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: cors });\n    if (origin && !ALLOWED_ORIGINS.includes(origin)) return new Response('Origin not allowed', { status: 403, headers: cors });\n\n    const target = new URL(request.url).searchParams.get('url');\n    let url;\n    try { url = new URL(target); } catch { return new Response('Missing or bad ?url=', { status: 400, headers: cors }); }\n    if (url.protocol !== 'https:' || !ALLOWED_HOSTS.includes(url.hostname)) {\n      return new Response(`Host not allowed: ${url.hostname}`, { status: 403, headers: cors });\n    }\n\n    const ttl = CACHE_SECONDS[url.hostname] ?? 120;\n    const cache = caches.default;\n    const cacheKey = new Request(url.toString(), { method: 'GET' });\n    let res = await cache.match(cacheKey);\n    if (!res) {\n      const upstream = await fetch(url.toString(), {\n        headers: {\n          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',\n          'Accept': 'application/json, application/rss+xml, application/xml, text/xml, */*',\n          'Accept-Language': 'en-US,en;q=0.9',\n        },\n        redirect: 'follow',\n      });\n      res = new Response(upstream.body, upstream);\n      res.headers.set('Cache-Control', `public, max-age=${ttl}`);\n      if (upstream.ok) ctx.waitUntil(cache.put(cacheKey, res.clone()));\n    }\n    const out = new Response(res.body, res);\n    for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);\n    return out;\n  },\n};\n";</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
@@ -70,6 +71,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.1); }
 .btn.danger { color: var(--dn); }
+.btn.warn { background: #3a2e05; color: var(--warn); border-color: #6b5408; font-weight: 600; }
+.connect p { margin: 6px 0 10px; line-height: 1.55; }
+.connect ol { margin: 0; padding-left: 20px; }
+.connect li { margin: 0 0 14px; line-height: 1.55; }
+.connect a { color: var(--accent); text-decoration: underline; }
+.code-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.code-row input { flex: 1; margin: 0 !important; }
+#connect input, #connect textarea { display: block; width: 100%; padding: 6px 8px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 4px; color: var(--text); }
+#connect textarea { font: 11px var(--mono); white-space: pre; resize: vertical; }
+#connectResult.ok { color: var(--up); } #connectResult.err { color: var(--dn); }
 .btn .key { display: inline-block; padding: 0 3px; margin-right: 3px; border: 1px solid currentColor; font-size: 10px; line-height: 13px; }
 .btn.spin { opacity: .7; pointer-events: none; }
 
@@ -261,6 +272,7 @@ code { color: var(--accent); }
     <option value="0">AUTO OFF</option><option value="60">AUTO 1m</option><option value="120">AUTO 2m</option>
     <option value="300">AUTO 5m</option><option value="900">AUTO 15m</option>
   </select>
+  <button class="btn warn hidden" id="btnConnect" title="Set up the free data connection">⚠ CONNECT DATA</button>
   <button class="btn" id="btnSettings" title="Settings (S)"><span class="key">S</span> SETTINGS</button>
   <button class="btn" id="btnHelp" title="Keyboard shortcuts (?)">?</button>
 </header>
@@ -422,6 +434,30 @@ code { color: var(--accent); }
       <button class="btn" value="cancel" formnovalidate>CANCEL</button>
       <button class="btn primary" value="save" id="btnSave">SAVE &amp; RELOAD</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="connect" class="modal">
+  <form method="dialog">
+    <div class="modal-h">CONNECT LIVE DATA <span class="dim">— one-time, about 5 minutes, free</span><button class="mini" value="later">✕</button></div>
+    <div class="modal-b connect">
+      <p>Browsers don't let a web page read Yahoo Finance, Nasdaq or news feeds directly, and the free public relays have shut down.
+        A free <b>Cloudflare Worker</b> relays the data for you. It runs in Cloudflare's cloud, so nothing is installed or run on your PC.
+        Only the market and news sites the terminal uses are allowed through.</p>
+      <ol>
+        <li><b>Create a free Cloudflare account:</b> <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">dash.cloudflare.com/sign-up</a> (no credit card needed).</li>
+        <li><b>Create a Worker:</b> in the left menu open <i>Workers &amp; Pages</i> (under <i>Compute</i>), then click <i>Create</i> → <i>Start with Hello World!</i> → name it <code>ttt-proxy</code> → <i>Deploy</i>.</li>
+        <li><b>Paste the relay code:</b> click <i>Edit code</i>, select everything in the editor (Ctrl+A) and delete it, then paste this code and click <i>Deploy</i>.
+          <div class="code-row"><button class="btn primary" type="button" id="btnCopyWorker">COPY CODE</button><span class="dim" id="copyWorkerMsg"></span></div>
+          <textarea id="workerCode" rows="5" readonly spellcheck="false"></textarea></li>
+        <li><b>Connect:</b> copy your worker's address from the Cloudflare page (it ends in <code>.workers.dev</code>), paste it here and click <i>Test &amp; Save</i>.
+          <div class="code-row"><input id="connectUrl" placeholder="https://ttt-proxy.your-name.workers.dev">
+          <button class="btn primary" type="button" id="btnTestConnect">TEST &amp; SAVE</button></div>
+          <div id="connectResult" class="dim"></div></li>
+      </ol>
+      <p class="hint">Free plan: 100,000 requests a day. The terminal uses roughly 30 per refresh, so auto-refresh every minute all day is well within it.</p>
+    </div>
+    <div class="modal-f"><div class="spacer"></div><button class="btn" value="later">LATER</button></div>
   </form>
 </dialog>
 
@@ -661,7 +697,7 @@ async function fetchText(url, opts = {}) {
 
   netStats.fail++;
   if (!hasPrivateRoute()) {
-    throw new Error('no data connection: open the terminal with Start-Terminal.bat (or set a proxy in Settings). Free public proxies are not responding.');
+    throw new Error('no data connection: click CONNECT DATA (top right) to set up the free relay.');
   }
   throw new Error(`${new URL(url).hostname}: ${lastErr?.message || 'failed'}`);
 }
@@ -718,8 +754,10 @@ const sessionKey = (ms, openHour) => etParts(ms + (24 - openHour) * HOUR).date;
 
 // ---------- fetching ----------
 async function yahooBars(sym, range = '5d', interval = '5m') {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}&includePrePost=true`;
-  const j = await fetchJSON(url);
+  const path = `/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}&includePrePost=true`;
+  let j;
+  try { j = await fetchJSON(`https://query1.finance.yahoo.com${path}`); }
+  catch { j = await fetchJSON(`https://query2.finance.yahoo.com${path}`); } // Yahoo's backup host
   const r = j?.chart?.result?.[0];
   if (!r) throw new Error(j?.chart?.error?.description || `no data for ${sym}`);
   const q = r.indicators?.quote?.[0] || {};
@@ -1589,9 +1627,49 @@ function renderTape() {
 function connectionHelp() {
   if (hasPrivateRoute()) return '';
   return `<div class="conn-help"><b>No data connection.</b> Browsers can't read Yahoo, Nasdaq or news feeds directly, and the free public relays are not responding.
-    Close this page and open the terminal with <code>Start-Terminal.bat</code> (in the same folder as this file) — it runs a small helper on your PC that fetches the data.
-    Or paste a proxy URL in Settings (S).</div>`;
+    <button class="btn warn" type="button" data-connect>SET UP FREE DATA CONNECTION</button> (one-time, about 5 minutes, nothing installed on your PC).</div>`;
 }
+
+// ---------------------------------------------------------------- data connection wizard
+async function workerSource() {
+  if (window.TTT_WORKER_SRC) return window.TTT_WORKER_SRC;
+  const r = await fetch('proxy/worker.js');
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.text();
+}
+
+async function openConnect() {
+  $('#connectUrl').value = cfg.proxyUrl;
+  $('#connectResult').textContent = ''; $('#connectResult').className = 'dim';
+  $('#connect').showModal();
+  try { $('#workerCode').value = await workerSource(); }
+  catch (e) { $('#workerCode').value = `// Could not load the relay code (${e.message}). Find it in terminal/proxy/worker.js.`; }
+}
+
+async function testConnect() {
+  const out = $('#connectResult');
+  let base = $('#connectUrl').value.trim().replace(/\/+$/, '');
+  if (base && !/^https?:\/\//.test(base)) base = `https://${base}`;
+  if (!base) { out.className = 'err'; out.textContent = 'Paste your worker address first.'; return; }
+  out.className = 'dim'; out.textContent = 'Testing…';
+  const probe = 'https://query1.finance.yahoo.com/v8/finance/chart/ES%3DF?interval=5m&range=1d';
+  try {
+    const r = await fetch(`${base}/?url=${encodeURIComponent(probe)}`, { cache: 'no-store' });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0, 120)}`);
+    const price = JSON.parse(text)?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    if (!price) throw new Error('the relay answered, but not with market data. Check that the code was pasted in full and deployed.');
+    out.className = 'ok'; out.textContent = `Connected. ES ${price}. Loading all data…`;
+    setTimeout(() => { $('#connect').close('saved'); applyNewSettings({ ...cfg, proxyUrl: base }); }, 900);
+  } catch (e) {
+    out.className = 'err';
+    out.textContent = /Failed to fetch|NetworkError|Load failed/i.test(e.message)
+      ? 'Could not reach that address. Check it ends in .workers.dev, and that you clicked Deploy after pasting the code (a new worker can take a minute to go live).'
+      : `Not working yet: ${e.message}`;
+  }
+}
+
+function updateConnectButton() { $('#btnConnect').classList.toggle('hidden', hasPrivateRoute()); }
 
 function renderStatusbar() {
   const bits = [
@@ -1687,6 +1765,7 @@ function applyNewSettings(next) {
   cfg = next;
   saveSettings(cfg);
   configureNet(cfg);
+  updateConnectButton();
   state.selected = Math.min(state.selected, cfg.instruments.length - 1);
   state.trend = []; state.ai = '';
   applyPanels();
@@ -1708,6 +1787,14 @@ function bind() {
   $('#btnRefresh').onclick = (e) => { if (e.shiftKey) mountWidgets(); refreshAll(); };
   $('#btnSettings').onclick = openSettings;
   $('#btnHelp').onclick = () => $('#help').showModal();
+  $('#btnConnect').onclick = openConnect;
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-connect]')) openConnect(); });
+  $('#btnTestConnect').onclick = testConnect;
+  $('#connectUrl').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); testConnect(); } };
+  $('#btnCopyWorker').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#workerCode').value); $('#copyWorkerMsg').textContent = 'Copied. Now paste it into the Cloudflare editor.'; }
+    catch { $('#workerCode').select(); $('#copyWorkerMsg').textContent = 'Press Ctrl+C to copy the selected code.'; }
+  };
   $('#btnAI').onclick = runAI;
   $('#btnCopyBrief').onclick = async () => {
     const txt = (state.ai ? `AI BRIEF:\n${state.ai}\n\n` : '') + briefText();
@@ -1782,7 +1869,13 @@ tickClock();
 setInterval(tickClock, 1000);
 setInterval(() => { if (state.calendar.length) renderCalendar(false); }, 60e3);
 setupAuto();
-refreshAll();
+updateConnectButton();
+refreshAll().then(() => {
+  // First run without a data connection: offer the setup once per browser session.
+  let shown = false;
+  try { shown = sessionStorage.getItem('ttt.connectShown') === '1'; sessionStorage.setItem('ttt.connectShown', '1'); } catch { /* ignore */ }
+  if (!hasPrivateRoute() && !shown && state.trend.length < cfg.instruments.length - 1) openConnect();
+});
 
 return {  };
 })();

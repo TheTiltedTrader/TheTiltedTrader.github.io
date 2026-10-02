@@ -4,11 +4,13 @@ from a folder on your PC.
 
 Browsers refuse to load separate ES-module files from file://, so this inlines
 terminal.css and every js/*.js module (each wrapped in its own scope) into
-local/TTT-Terminal.html. Open it with local/Start-Terminal.bat, which starts a
-small PowerShell helper that fetches the market data for the page.
+local/TTT-Terminal.html. Live data comes through a free Cloudflare Worker
+(set up from the page's CONNECT DATA screen; the relay code is embedded), or
+through the optional PowerShell helper in local/ on PCs that allow scripts.
 
-    python3 terminal/build_local.py   # also writes local/TTT-Terminal.zip
+    python3 terminal/build_local.py
 """
+import json
 import re
 from pathlib import Path
 
@@ -41,6 +43,8 @@ def main() -> None:
     html = html.replace('<script type="module" src="js/app.js"></script>',
                         f'<script>\n{js}</script>')
     html = html.replace('see proxy/README.md', 'see the proxy folder README')
+    worker = json.dumps((ROOT / 'proxy' / 'worker.js').read_text()).replace('</', '<\\/')
+    html = html.replace('<head>', f'<head>\n<script>window.TTT_WORKER_SRC = {worker};</script>', 1)
     if 'js/app.js' in html or 'terminal.css' in html:
         raise SystemExit('index.html layout changed; update build_local.py')
 
@@ -52,12 +56,6 @@ def main() -> None:
     # Windows needs CRLF in .bat files
     bat = local / 'Start-Terminal.bat'
     bat.write_bytes(bat.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
-
-    import zipfile
-    with zipfile.ZipFile(local / 'TTT-Terminal.zip', 'w', zipfile.ZIP_DEFLATED) as z:
-        for name in ('Start-Terminal.bat', 'TTT-Server.ps1', 'TTT-Terminal.html', 'README.txt'):
-            z.write(local / name, f'TTT-Terminal/{name}')
-    print(f'wrote {local / "TTT-Terminal.zip"}')
 
 
 if __name__ == '__main__':

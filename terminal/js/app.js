@@ -370,9 +370,49 @@ function renderTape() {
 function connectionHelp() {
   if (hasPrivateRoute()) return '';
   return `<div class="conn-help"><b>No data connection.</b> Browsers can't read Yahoo, Nasdaq or news feeds directly, and the free public relays are not responding.
-    Close this page and open the terminal with <code>Start-Terminal.bat</code> (in the same folder as this file) — it runs a small helper on your PC that fetches the data.
-    Or paste a proxy URL in Settings (S).</div>`;
+    <button class="btn warn" type="button" data-connect>SET UP FREE DATA CONNECTION</button> (one-time, about 5 minutes, nothing installed on your PC).</div>`;
 }
+
+// ---------------------------------------------------------------- data connection wizard
+async function workerSource() {
+  if (window.TTT_WORKER_SRC) return window.TTT_WORKER_SRC;
+  const r = await fetch('proxy/worker.js');
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.text();
+}
+
+async function openConnect() {
+  $('#connectUrl').value = cfg.proxyUrl;
+  $('#connectResult').textContent = ''; $('#connectResult').className = 'dim';
+  $('#connect').showModal();
+  try { $('#workerCode').value = await workerSource(); }
+  catch (e) { $('#workerCode').value = `// Could not load the relay code (${e.message}). Find it in terminal/proxy/worker.js.`; }
+}
+
+async function testConnect() {
+  const out = $('#connectResult');
+  let base = $('#connectUrl').value.trim().replace(/\/+$/, '');
+  if (base && !/^https?:\/\//.test(base)) base = `https://${base}`;
+  if (!base) { out.className = 'err'; out.textContent = 'Paste your worker address first.'; return; }
+  out.className = 'dim'; out.textContent = 'Testing…';
+  const probe = 'https://query1.finance.yahoo.com/v8/finance/chart/ES%3DF?interval=5m&range=1d';
+  try {
+    const r = await fetch(`${base}/?url=${encodeURIComponent(probe)}`, { cache: 'no-store' });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0, 120)}`);
+    const price = JSON.parse(text)?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    if (!price) throw new Error('the relay answered, but not with market data. Check that the code was pasted in full and deployed.');
+    out.className = 'ok'; out.textContent = `Connected. ES ${price}. Loading all data…`;
+    setTimeout(() => { $('#connect').close('saved'); applyNewSettings({ ...cfg, proxyUrl: base }); }, 900);
+  } catch (e) {
+    out.className = 'err';
+    out.textContent = /Failed to fetch|NetworkError|Load failed/i.test(e.message)
+      ? 'Could not reach that address. Check it ends in .workers.dev, and that you clicked Deploy after pasting the code (a new worker can take a minute to go live).'
+      : `Not working yet: ${e.message}`;
+  }
+}
+
+function updateConnectButton() { $('#btnConnect').classList.toggle('hidden', hasPrivateRoute()); }
 
 function renderStatusbar() {
   const bits = [
@@ -468,6 +508,7 @@ function applyNewSettings(next) {
   cfg = next;
   saveSettings(cfg);
   configureNet(cfg);
+  updateConnectButton();
   state.selected = Math.min(state.selected, cfg.instruments.length - 1);
   state.trend = []; state.ai = '';
   applyPanels();
@@ -489,6 +530,14 @@ function bind() {
   $('#btnRefresh').onclick = (e) => { if (e.shiftKey) mountWidgets(); refreshAll(); };
   $('#btnSettings').onclick = openSettings;
   $('#btnHelp').onclick = () => $('#help').showModal();
+  $('#btnConnect').onclick = openConnect;
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-connect]')) openConnect(); });
+  $('#btnTestConnect').onclick = testConnect;
+  $('#connectUrl').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); testConnect(); } };
+  $('#btnCopyWorker').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#workerCode').value); $('#copyWorkerMsg').textContent = 'Copied. Now paste it into the Cloudflare editor.'; }
+    catch { $('#workerCode').select(); $('#copyWorkerMsg').textContent = 'Press Ctrl+C to copy the selected code.'; }
+  };
   $('#btnAI').onclick = runAI;
   $('#btnCopyBrief').onclick = async () => {
     const txt = (state.ai ? `AI BRIEF:\n${state.ai}\n\n` : '') + briefText();
@@ -563,4 +612,10 @@ tickClock();
 setInterval(tickClock, 1000);
 setInterval(() => { if (state.calendar.length) renderCalendar(false); }, 60e3);
 setupAuto();
-refreshAll();
+updateConnectButton();
+refreshAll().then(() => {
+  // First run without a data connection: offer the setup once per browser session.
+  let shown = false;
+  try { shown = sessionStorage.getItem('ttt.connectShown') === '1'; sessionStorage.setItem('ttt.connectShown', '1'); } catch { /* ignore */ }
+  if (!hasPrivateRoute() && !shown && state.trend.length < cfg.instruments.length - 1) openConnect();
+});

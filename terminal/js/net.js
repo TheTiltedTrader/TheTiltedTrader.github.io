@@ -73,7 +73,7 @@ export async function fetchText(url, opts = {}) {
 
   netStats.fail++;
   if (!hasPrivateRoute()) {
-    throw new Error('no data connection: open the terminal with Start-Terminal.bat (or set a proxy in Settings). Free public proxies are not responding.');
+    throw new Error('no data connection: click CONNECT DATA (top right) to set up the free relay.');
   }
   throw new Error(`${new URL(url).hostname}: ${lastErr?.message || 'failed'}`);
 }

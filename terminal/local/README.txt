@@ -1,29 +1,18 @@
 TTT TERMINAL - run it from a folder on your PC
 ==============================================
 
-1. Keep these three files together in one folder:
-     Start-Terminal.bat   <- double-click this
-     TTT-Server.ps1       (local data helper, uses built-in Windows PowerShell)
-     TTT-Terminal.html    (the terminal itself)
+1. Save TTT-Terminal.html anywhere on your PC and double-click it.
 
-2. Double-click Start-Terminal.bat.
-   A small window opens ("data helper") and the terminal opens in your browser
-   at http://localhost:8787. Keep that small window open while you trade;
-   close it when you are done.
+2. The first time, a "Connect live data" screen walks you through a one-time,
+   ~5 minute setup of a free Cloudflare Worker that relays the market data
+   and news. It runs in Cloudflare's cloud - nothing is installed or run on
+   your PC, so it works with Windows Smart App Control. You can reopen the
+   screen any time with the CONNECT DATA button (shown while not connected).
 
-Why the helper? Browsers do not let a web page read Yahoo Finance, Nasdaq or
-news feeds directly. The helper runs only on your PC (localhost, not reachable
-from other computers), fetches those sources for the page, and caches them
-briefly. It can only fetch the market-data and news sites listed at the top of
-TTT-Server.ps1.
+Why a relay? Browsers do not let a web page read Yahoo Finance, Nasdaq or
+news feeds directly. The relay fetches only the market-data and news sites
+the terminal uses (listed at the top of its code) and answers only this page.
 
-Troubleshooting
-- "Windows protected your PC": click More info -> Run anyway (the files are
-  plain text; open them in Notepad if you want to check them first).
-- If you downloaded these files as a zip, right-click the zip -> Properties ->
-  tick "Unblock" before you extract it.
-- If the window says the port is in use, the helper is already running; just
-  open http://localhost:8787 in your browser.
-- Opening TTT-Terminal.html directly (double-clicking it) still works for the
-  TradingView heat map and chart, but futures, news, earnings and the calendar
-  need the helper.
+Optional, for PCs that allow scripts (NOT ones with Smart App Control on):
+Start-Terminal.bat + TTT-Server.ps1 run the same relay locally instead of on
+Cloudflare. Keep all three files in one folder and double-click the .bat.

@@ -24,6 +24,7 @@
     <option value="0">AUTO OFF</option><option value="60">AUTO 1m</option><option value="120">AUTO 2m</option>
     <option value="300">AUTO 5m</option><option value="900">AUTO 15m</option>
   </select>
+  <button class="btn warn hidden" id="btnConnect" title="Set up the free data connection">⚠ CONNECT DATA</button>
   <button class="btn" id="btnSettings" title="Settings (S)"><span class="key">S</span> SETTINGS</button>
   <button class="btn" id="btnHelp" title="Keyboard shortcuts (?)">?</button>
 </header>
@@ -185,6 +186,30 @@
       <button class="btn" value="cancel" formnovalidate>CANCEL</button>
       <button class="btn primary" value="save" id="btnSave">SAVE &amp; RELOAD</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="connect" class="modal">
+  <form method="dialog">
+    <div class="modal-h">CONNECT LIVE DATA <span class="dim">— one-time, about 5 minutes, free</span><button class="mini" value="later">✕</button></div>
+    <div class="modal-b connect">
+      <p>Browsers don't let a web page read Yahoo Finance, Nasdaq or news feeds directly, and the free public relays have shut down.
+        A free <b>Cloudflare Worker</b> relays the data for you. It runs in Cloudflare's cloud, so nothing is installed or run on your PC.
+        Only the market and news sites the terminal uses are allowed through.</p>
+      <ol>
+        <li><b>Create a free Cloudflare account:</b> <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">dash.cloudflare.com/sign-up</a> (no credit card needed).</li>
+        <li><b>Create a Worker:</b> in the left menu open <i>Workers &amp; Pages</i> (under <i>Compute</i>), then click <i>Create</i> → <i>Start with Hello World!</i> → name it <code>ttt-proxy</code> → <i>Deploy</i>.</li>
+        <li><b>Paste the relay code:</b> click <i>Edit code</i>, select everything in the editor (Ctrl+A) and delete it, then paste this code and click <i>Deploy</i>.
+          <div class="code-row"><button class="btn primary" type="button" id="btnCopyWorker">COPY CODE</button><span class="dim" id="copyWorkerMsg"></span></div>
+          <textarea id="workerCode" rows="5" readonly spellcheck="false"></textarea></li>
+        <li><b>Connect:</b> copy your worker's address from the Cloudflare page (it ends in <code>.workers.dev</code>), paste it here and click <i>Test &amp; Save</i>.
+          <div class="code-row"><input id="connectUrl" placeholder="https://ttt-proxy.your-name.workers.dev">
+          <button class="btn primary" type="button" id="btnTestConnect">TEST &amp; SAVE</button></div>
+          <div id="connectResult" class="dim"></div></li>
+      </ol>
+      <p class="hint">Free plan: 100,000 requests a day. The terminal uses roughly 30 per refresh, so auto-refresh every minute all day is well within it.</p>
+    </div>
+    <div class="modal-f"><div class="spacer"></div><button class="btn" value="later">LATER</button></div>
   </form>
 </dialog>
 

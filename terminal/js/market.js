@@ -23,8 +23,10 @@ const sessionKey = (ms, openHour) => etParts(ms + (24 - openHour) * HOUR).date;
 
 // ---------- fetching ----------
 async function yahooBars(sym, range = '5d', interval = '5m') {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}&includePrePost=true`;
-  const j = await fetchJSON(url);
+  const path = `/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}&includePrePost=true`;
+  let j;
+  try { j = await fetchJSON(`https://query1.finance.yahoo.com${path}`); }
+  catch { j = await fetchJSON(`https://query2.finance.yahoo.com${path}`); } // Yahoo's backup host
   const r = j?.chart?.result?.[0];
   if (!r) throw new Error(j?.chart?.error?.description || `no data for ${sym}`);
   const q = r.indicators?.quote?.[0] || {};
