@@ -21,20 +21,6 @@ export function mountTV(host, kind, config) {
   host.append(wrap);
 }
 
-export function tickerTape(host, cfg) {
-  const symbols = [
-    ...cfg.instruments.filter(i => i.tv).map(i => ({ proName: i.tv, title: i.label })),
-    { proName: 'CBOE:VIX', title: 'VIX' },
-    { proName: 'TVC:DXY', title: 'DXY' },
-    { proName: 'TVC:US10Y', title: 'US10Y' },
-    { proName: 'FX:EURUSD', title: 'EURUSD' },
-    { proName: 'FX:USDJPY', title: 'USDJPY' },
-  ];
-  mountTV(host, 'ticker-tape', {
-    symbols, showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: 'dark', locale: 'en',
-  });
-}
-
 export function heatmap(host, cfg) {
   mountTV(host, 'stock-heatmap', {
     exchanges: [], dataSource: cfg.heatmapSource, grouping: 'sector', blockSize: 'market_cap_basic',
@@ -47,7 +33,7 @@ export function heatmap(host, cfg) {
 export function chart(host, symbol, cfg) {
   mountTV(host, 'advanced-chart', {
     autosize: true, symbol, interval: cfg.chartInterval, timezone: 'America/New_York', theme: 'dark',
-    style: '1', locale: 'en', backgroundColor: 'rgba(0,0,0,1)', gridColor: 'rgba(40,40,40,0.6)',
+    style: '1', locale: 'en', backgroundColor: 'rgba(24,25,30,1)', gridColor: 'rgba(46,48,56,0.6)',
     allow_symbol_change: true, hide_side_toolbar: true, calendar: false, withdateranges: true,
     studies: ['STD;VWAP'], support_host: 'https://www.tradingview.com',
   });

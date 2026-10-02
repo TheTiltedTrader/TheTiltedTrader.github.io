@@ -1,5 +1,5 @@
 import { loadSettings, saveSettings, resetSettings, fmt, parse, DEFAULTS } from './config.js';
-import { configureNet, netStats, pool } from './net.js';
+import { configureNet, netStats, pool, hasPrivateRoute, routeLabel } from './net.js';
 import { loadInstrument, loadQuote, analyze, narrate, riskTone, nf, sgn, etParts, etTime } from './market.js';
 import { loadNews, overnightStart } from './news.js';
 import { loadEarnings, loadCalendar } from './events.js';
@@ -113,6 +113,7 @@ async function refreshAll() {
     catch (e) { state.errors[k] = e.message; console.warn(k, e); }
     try { render(); } catch (e) { console.error('render', k, e); }
     renderBrief();
+    if (k === 'trend' || k === 'quotes') renderTape();
   }));
   state.busy = false;
   $('#btnRefresh').classList.remove('spin');
@@ -164,6 +165,8 @@ function renderTrend() {
     </tr>`;
   }).join('');
   $('#trendTable').innerHTML = `<thead>${head}</thead><tbody>${rows}</tbody>`;
+  const allFailed = cfg.instruments.some(i => state.trendErr[i.label]) && Object.keys(state.trendErr).length >= cfg.instruments.length - 1;
+  $('#trendHelp').innerHTML = allFailed ? connectionHelp() : '';
   $('#trendSub').textContent = state.updated.trend ? `5m bars · upd ${etTime(state.updated.trend)}` : '';
   $('#trendWindows').innerHTML = [[4, 8], [2, 6], [4, 12], [8, 24]].map(([a, b]) =>
     `<button class="mini ${a === w1 && b === w2 ? 'on' : ''}" data-win="${a},${b}">${a}/${b}H</button>`).join('');
@@ -238,10 +241,11 @@ function renderEarnings() {
   const capFmt = (c) => c >= 1e12 ? `$${(c / 1e12).toFixed(2)}T` : c ? `$${(c / 1e9).toFixed(0)}B` : '—';
   $('#earnSub').textContent = `≥ $${cfg.earningsMinCapB}B or watchlist`;
   $('#earnings').innerHTML = e.groups.map(g => `<div class="egroup"><h5>${esc(g.title)}</h5>${g.rows.length
-    ? `<table class="tbl"><thead><tr><th>SYM</th><th style="text-align:left">COMPANY</th><th>MKT CAP</th><th>EPS EST</th><th>LY EPS</th><th>FQ</th></tr></thead><tbody>${g.rows.map(r =>
+    ? `<table class="tbl"><thead><tr><th>SYM</th><th style="text-align:left">COMPANY</th><th>MKT CAP</th><th>EPS EST</th><th>ACTUAL</th><th>SURPR</th><th>FQ</th></tr></thead><tbody>${g.rows.map(r =>
       `<tr><td class="sym">${r.watch ? '<span class="star">★</span>' : ''}<a href="https://www.tradingview.com/symbols/${esc(r.sym)}/" target="_blank" rel="noopener">${esc(r.sym)}</a></td>
         <td style="text-align:left;max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</td>
-        <td>${capFmt(r.cap)}</td><td>${esc(r.eps)}</td><td class="dim">${esc(r.ly)}</td><td class="dim">${esc(r.fq)}</td></tr>`).join('')}</tbody></table>`
+        <td>${capFmt(r.cap)}</td><td>${esc(r.eps)}</td><td>${r.actual ? esc(r.actual) : `<span class="dim" title="last year">${esc(r.ly)} LY</span>`}</td>
+        <td class="${cls(parseFloat(r.surprise))}">${r.surprise ? sgn(parseFloat(r.surprise), 1) + '%' : '—'}</td><td class="dim">${esc(r.fq)}</td></tr>`).join('')}</tbody></table>`
     : '<div class="none">No market-moving reports.</div>'}</div>`).join('');
 }
 
@@ -280,7 +284,7 @@ function briefData() {
   const todayET = etParts(now).date;
   const events = state.calendar.filter(e => etParts(e.t).date === todayET || (e.t > now && e.t - now < 24 * 3600e3));
   const earn = state.earnings?.groups.filter(g => /Reacting|before open/.test(g.title) && !/^Next/.test(g.title))
-    .flatMap(g => g.rows.slice(0, 8).map(r => `${r.sym}${g.title.startsWith('Reacting') ? ' (AMC)' : ' (BMO)'}`)) || [];
+    .flatMap(g => g.rows.slice(0, 8).map(r => `${r.sym} (${r.when === 'TNS' ? (r.actual ? 'reported' : 'time n/a') : r.when})`)) || [];
   return { since, overnight, tone, themes, top, events, earn };
 }
 
@@ -348,14 +352,36 @@ async function runAI() {
   }
 }
 
+// Scrolling ticker tape built from our own data (always readable, no widget limits).
+function renderTape() {
+  const items = [
+    ...state.trend.map(a => ({ l: a.inst.label, v: nf(a.last, a.inst.dp), c: a.chg, p: a.pct, dp: a.inst.dp })),
+    ...state.quotes.filter(q => !q.err && isFinite(q.last)).map(q => ({ l: q.label, v: nf(q.last, q.dp), c: q.chg, p: q.pct, dp: q.dp })),
+  ];
+  const tape = $('#tape');
+  if (!items.length) {
+    tape.innerHTML = `<div class="tape-msg">${state.busy ? 'Loading prices…' : 'Prices unavailable — see the message in the trend monitor.'}</div>`;
+    return;
+  }
+  const html = items.map(i => `<span class="tk"><b>${esc(i.l)}</b> ${i.v} <span class="${cls(i.c)}">${i.c > 0 ? '▲' : i.c < 0 ? '▼' : ''} ${sgn(i.c, i.dp)} (${sgn(i.p)}%)</span></span>`).join('');
+  tape.innerHTML = `<div class="tape-track" style="animation-duration:${Math.max(30, items.length * 4)}s">${html}${html}</div>`;
+}
+
+function connectionHelp() {
+  if (hasPrivateRoute()) return '';
+  return `<div class="conn-help"><b>No data connection.</b> Browsers can't read Yahoo, Nasdaq or news feeds directly, and the free public relays are not responding.
+    Close this page and open the terminal with <code>Start-Terminal.bat</code> (in the same folder as this file) — it runs a small helper on your PC that fetches the data.
+    Or paste a proxy URL in Settings (S).</div>`;
+}
+
 function renderStatusbar() {
   const bits = [
-    `Data route: ${netStats.lastRoute || '—'}${cfg.proxyUrl ? '' : ' (no private proxy configured)'}`,
+    `Data route: ${routeLabel()}${netStats.lastRoute ? ` (last: ${netStats.lastRoute})` : ''}`,
     `Requests ok ${netStats.ok} / failed ${netStats.fail}`,
   ];
   if (state.newsFailed.length) bits.push(`<span class="err">Feeds down: ${esc(state.newsFailed.join(', '))}</span>`);
   for (const [k, v] of Object.entries(state.errors)) bits.push(`<span class="err">${k}: ${esc(v)}</span>`);
-  bits.push('Futures/quotes via Yahoo Finance & Coinbase (may be delayed) · Heat map, chart & tape via TradingView · Calendar via ForexFactory · Earnings via Nasdaq · Not investment advice');
+  bits.push('Futures/quotes via Yahoo Finance & Coinbase (may be delayed) · Heat map & chart via TradingView · Calendar via ForexFactory · Earnings via Nasdaq · Not investment advice');
   $('#statusbar').innerHTML = bits.map(b => `<span>${b}</span>`).join('');
 }
 
@@ -374,7 +400,7 @@ function selectInstrument(i) {
 }
 
 function mountWidgets() {
-  TV.tickerTape($('#tape'), cfg);
+  renderTape();
   if (cfg.panels.heatmap) TV.heatmap($('#heatmap'), cfg);
   $('#chartTabs').innerHTML = cfg.instruments.map((inst, i) => inst.tv ? `<button class="mini" data-i="${i}">${esc(inst.label)}</button>` : '').join('');
   selectInstrument(state.selected);

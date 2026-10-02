@@ -7,101 +7,112 @@
 <title>TTT Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #000;
-  --panel: #0a0b0d;
-  --panel-2: #111318;
-  --line: #23262d;
-  --line-2: #30343c;
-  --text: #e8e8e8;
-  --dim: #8b8f98;
-  --faint: #5b5f68;
-  --amber: #ffa028;
-  --amber-dim: #7a4c10;
-  --blue: #4aa3ff;
-  --up: #22d17a;
-  --up-2: #0f5c37;
-  --dn: #ff4d57;
-  --dn-2: #6b1a20;
-  --warn: #ffd23f;
-  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --sans: 'Inter', system-ui, -apple-system, Segoe UI, sans-serif;
+  /* Webull-style dark palette */
+  --bg: #0e0f13;
+  --panel: #17181d;
+  --panel-2: #1f2027;
+  --head: #1c1d23;
+  --line: #26272e;
+  --line-2: #33353d;
+  --text: #e7e8eb;
+  --dim: #8d909b;
+  --faint: #5d606a;
+  --accent: #2f7bff;
+  --accent-dim: #24406f;
+  --accent-bg: #15233d;
+  --blue: #2f7bff;
+  --up: #00b97b;
+  --up-2: #0c3d2c;
+  --dn: #f6465d;
+  --dn-2: #4a1c24;
+  --warn: #f0b90b;
+  --mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font: 12px/1.45 var(--mono); }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 12.5px/1.45 var(--sans); font-variant-numeric: tabular-nums; }
 a { color: inherit; text-decoration: none; }
-a:hover { color: var(--amber); text-decoration: underline; }
+a:hover { color: var(--accent); text-decoration: underline; }
 button, input, select, textarea { font: inherit; color: inherit; }
 .hidden { display: none !important; }
 .dim { color: var(--dim); }
-.up { color: var(--up); } .dn { color: var(--dn); } .amber { color: var(--amber); }
+.up { color: var(--up); } .dn { color: var(--dn); } .accent { color: var(--accent); }
 
 /* ---------- top bar ---------- */
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 10px;
   height: 38px; padding: 0 10px;
-  background: #050505; border-bottom: 1px solid var(--amber-dim);
+  background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: baseline; gap: 6px; }
-.logo { background: var(--amber); color: #000; font-weight: 600; padding: 1px 6px; letter-spacing: 1px; }
-.brand-sub { color: var(--amber); letter-spacing: 3px; font-weight: 500; }
-.clock { color: var(--text); font-weight: 500; min-width: 98px; }
-.pill { padding: 1px 8px; border: 1px solid var(--line-2); color: var(--dim); white-space: nowrap; }
-.pill.rth { border-color: var(--up); color: var(--up); }
-.pill.globex { border-color: var(--blue); color: var(--blue); }
-.pill.closed { border-color: var(--dn); color: var(--dn); }
+.logo { background: var(--accent); color: #fff; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: .5px; }
+.brand-sub { color: var(--text); letter-spacing: 2px; font-weight: 600; }
+.clock { color: var(--text); font-weight: 600; min-width: 98px; }
+.pill { padding: 2px 10px; border-radius: 12px; background: var(--panel-2); color: var(--dim); white-space: nowrap; font-size: 11.5px; }
+.pill.rth { background: var(--up-2); color: var(--up); }
+.pill.globex { background: var(--accent-bg); color: var(--blue); }
+.pill.closed { background: var(--dn-2); color: var(--dn); }
 .next-event { color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 38vw; }
 .spacer { flex: 1; }
 .status { color: var(--dim); white-space: nowrap; }
-.status.busy { color: var(--amber); }
+.status.busy { color: var(--accent); }
 .status.err { color: var(--dn); }
 .btn {
-  height: 26px; padding: 0 10px; background: var(--panel-2); border: 1px solid var(--line-2);
-  cursor: pointer; letter-spacing: .5px; white-space: nowrap;
+  height: 28px; padding: 0 12px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 4px;
+  cursor: pointer; white-space: nowrap; font-weight: 500;
 }
-.btn:hover { border-color: var(--amber); }
-.btn.primary { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.1); }
 .btn.danger { color: var(--dn); }
 .btn .key { display: inline-block; padding: 0 3px; margin-right: 3px; border: 1px solid currentColor; font-size: 10px; line-height: 13px; }
 .btn.spin { opacity: .7; pointer-events: none; }
 
-.tape { height: 46px; border-bottom: 1px solid var(--line); overflow: hidden; }
+.tape { height: 34px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; position: relative; }
+.tape-track { display: inline-flex; white-space: nowrap; height: 100%; align-items: center; animation: tape linear infinite; }
+.tape:hover .tape-track { animation-play-state: paused; }
+.tk { padding: 0 18px; border-right: 1px solid var(--line); font-size: 12.5px; }
+.tk b { color: var(--text); font-weight: 600; margin-right: 4px; }
+.tape-msg { line-height: 34px; padding: 0 12px; color: var(--dim); }
+@keyframes tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.conn-help { margin: 0 0 8px; padding: 10px 12px; border: 1px solid var(--accent-dim); background: var(--accent-bg); border-radius: 6px; line-height: 1.55; }
+.conn-help b { color: var(--text); }
 
 /* ---------- grid / panels ---------- */
 .grid {
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 6px; padding: 6px; align-items: stretch;
+  gap: 8px; padding: 8px; align-items: stretch;
 }
 .span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; }
 .span-7 { grid-column: span 7; } .span-12 { grid-column: span 12; }
 .panel {
-  background: var(--panel); border: 1px solid var(--line);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
   display: flex; flex-direction: column; min-height: 0; min-width: 0;
 }
 .panel.tall { height: 560px; }
 .ph {
-  display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 3px 8px;
-  background: linear-gradient(#16120a, #0d0b07); border-bottom: 1px solid var(--amber-dim);
-  color: var(--amber); font-weight: 600; letter-spacing: .6px; white-space: nowrap;
+  display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 3px 10px;
+  background: var(--head); border-bottom: 1px solid var(--line);
+  color: var(--text); font-weight: 600; font-size: 13px; letter-spacing: .2px; white-space: nowrap;
 }
-.fn { background: var(--amber); color: #000; padding: 0 5px; font-size: 11px; }
-.ph-sub { color: var(--dim); font-weight: 400; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; }
+.fn { background: var(--accent-bg); color: var(--accent); padding: 1px 6px; border-radius: 3px; font-size: 10.5px; font-weight: 700; }
+.ph-sub { color: var(--dim); font-weight: 400; font-size: 11.5px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; }
 .ph-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
 .pb { padding: 6px 8px; min-height: 0; }
 .pb.flush { padding: 0; flex: 1; }
 .pb.scroll { overflow: auto; flex: 1; }
 .mini {
-  height: 22px; padding: 0 7px; font-size: 11px; background: #000; border: 1px solid var(--line-2);
+  height: 24px; padding: 0 9px; font-size: 11.5px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 4px;
   color: var(--dim); cursor: pointer;
 }
-.mini:hover { color: var(--text); border-color: var(--amber); }
-.mini.on { color: #000; background: var(--amber); border-color: var(--amber); }
-.mini.accent { color: var(--amber); border-color: var(--amber-dim); }
+.mini:hover { color: var(--text); border-color: var(--accent); }
+.mini.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.mini.accent { color: var(--accent); border-color: var(--accent-dim); }
 .mini.search { width: 140px; cursor: text; color: var(--text); }
 
 /* ---------- tables ---------- */
@@ -111,13 +122,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   text-align: right; color: var(--dim); font-weight: 400; font-size: 11px;
   padding: 3px 6px; border-bottom: 1px solid var(--line-2); white-space: nowrap;
 }
-.tbl td { text-align: right; padding: 4px 6px; border-bottom: 1px solid #16181d; white-space: nowrap; }
+.tbl td { text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl th:first-child, .tbl td:first-child { text-align: left; }
 .tbl tr.row { cursor: pointer; }
-.tbl tr.row:hover td { background: #12141a; }
-.tbl tr.sel td { background: #1a1408; }
-.tbl tr.sel td:first-child { box-shadow: inset 2px 0 var(--amber); }
-.sym { color: var(--amber); font-weight: 600; }
+.tbl tr.row:hover td { background: var(--panel-2); }
+.tbl tr.sel td { background: var(--accent-bg); }
+.tbl tr.sel td:first-child { box-shadow: inset 2px 0 var(--accent); }
+.sym { color: var(--text); font-weight: 700; }
 .sym small { color: var(--faint); font-weight: 400; margin-left: 4px; }
 .last { font-weight: 600; }
 .tag {
@@ -131,59 +142,59 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lvl { color: var(--dim); font-size: 11px; }
 .lvl b { font-weight: 500; color: var(--text); }
 .lvl .brk { color: var(--warn); }
-.rangebar { position: relative; width: 60px; height: 6px; background: #1d2027; display: inline-block; vertical-align: middle; }
-.rangebar i { position: absolute; top: -2px; width: 3px; height: 10px; background: var(--amber); }
+.rangebar { position: relative; width: 60px; height: 6px; background: var(--line-2); border-radius: 3px; display: inline-block; vertical-align: middle; }
+.rangebar i { position: absolute; top: -2px; width: 3px; height: 10px; background: var(--accent); }
 .stale { color: var(--faint); }
 .spark { display: block; }
 
-.detail { margin-top: 8px; padding: 8px; border: 1px solid var(--line); background: #07080a; font-family: var(--sans); font-size: 12.5px; }
-.detail h4 { margin: 0 0 4px; font: 600 12px var(--mono); color: var(--amber); }
+.detail { margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); font-size: 12.5px; }
+.detail h4 { margin: 0 0 6px; font-weight: 600; font-size: 13px; color: var(--text); }
 .detail p { margin: 3px 0; color: #d6d6d6; }
 
 /* ---------- brief ---------- */
-.brief h5 { margin: 10px 0 4px; font: 600 11px var(--mono); color: var(--amber); letter-spacing: .8px; }
+.brief h5 { margin: 12px 0 4px; font-weight: 600; font-size: 11px; color: var(--accent); letter-spacing: .6px; }
 .brief h5:first-child { margin-top: 0; }
 .brief .toneline { font-size: 13px; font-weight: 600; }
 .brief ul { margin: 0; padding-left: 14px; font-family: var(--sans); }
 .brief li { margin: 2px 0; }
-.brief .fline { font-family: var(--mono); font-size: 11.5px; padding: 1px 0; border-bottom: 1px dotted #1a1c21; }
+.brief .fline { font-size: 12px; padding: 3px 0; border-bottom: 1px solid var(--line); }
 .brief .theme { margin: 4px 0 6px; }
 .brief .theme b { color: var(--text); }
-.ai-out { white-space: pre-wrap; font-family: var(--sans); font-size: 12.5px; padding: 8px; border: 1px solid var(--amber-dim); background: #0d0a04; margin-bottom: 8px; }
+.ai-out { white-space: pre-wrap; font-size: 12.5px; padding: 10px; border: 1px solid var(--accent-dim); border-radius: 6px; background: var(--accent-bg); margin-bottom: 8px; }
 
 /* ---------- news ---------- */
 .tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .tabs button { background: none; border: 1px solid transparent; color: var(--dim); padding: 1px 6px; cursor: pointer; font-size: 11px; }
 .tabs button:hover { color: var(--text); }
-.tabs button.on { color: #000; background: var(--amber); }
+.tabs button.on { color: #fff; background: var(--accent); border-radius: 3px; }
 .tabs button .n { opacity: .7; margin-left: 3px; }
-.news-item { display: grid; grid-template-columns: 54px 1fr; gap: 6px; padding: 5px 2px; border-bottom: 1px solid #15171c; }
+.news-item { display: grid; grid-template-columns: 54px 1fr; gap: 6px; padding: 7px 2px; border-bottom: 1px solid var(--line); }
 .news-item .t { color: var(--dim); font-size: 11px; }
 .news-item .t .d { display: block; color: var(--faint); font-size: 10px; }
 .news-item .h { font-family: var(--sans); font-size: 12.5px; line-height: 1.35; }
 .news-item.hi .h { font-weight: 600; }
 .news-item.hi .t { color: var(--dn); }
-.news-item.new { background: #0f1208; }
+.news-item.new { background: var(--accent-bg); }
 .news-item .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 10.5px; color: var(--faint); }
 .news-item .meta .src { color: var(--blue); }
-.news-item .meta .ft { color: var(--amber); opacity: .75; }
+.news-item .meta .ft { color: var(--accent); opacity: .75; }
 .news-item .meta .flag { color: var(--dn); font-weight: 600; }
 
 /* ---------- earnings / calendar ---------- */
-.egroup h5 { margin: 8px 0 3px; font: 600 11px var(--mono); color: var(--amber); }
+.egroup h5 { margin: 10px 0 3px; font-weight: 600; font-size: 11.5px; color: var(--accent); }
 .egroup h5:first-child { margin-top: 0; }
 .egroup .none { color: var(--faint); font-size: 11px; padding: 2px 0 4px; }
 .star { color: var(--warn); }
 .cal-row.past td { color: var(--faint); }
-.cal-row.soon td { background: #1a1408; }
-.cal-row.today td:first-child { box-shadow: inset 2px 0 var(--amber); }
+.cal-row.soon td { background: var(--accent-bg); }
+.cal-row.today td:first-child { box-shadow: inset 2px 0 var(--accent); }
 .impact { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
 .impact.High { background: var(--dn); } .impact.Medium { background: #ff9f2e; } .impact.Low { background: var(--warn); }
 
 /* ---------- indices ---------- */
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.tile { padding: 5px 7px; background: #07080a; border: 1px solid #16181d; }
-.tile .l { color: var(--amber); font-weight: 600; font-size: 11px; display: flex; justify-content: space-between; }
+.tile { padding: 7px 9px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; }
+.tile .l { color: var(--dim); font-weight: 600; font-size: 11px; display: flex; justify-content: space-between; }
 .tile .v { font-size: 14px; font-weight: 600; }
 .tile .c { font-size: 11px; }
 
@@ -199,29 +210,29 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .statusbar .err { color: var(--dn); }
 
 /* ---------- modal ---------- */
-.modal { background: var(--panel); color: var(--text); border: 1px solid var(--amber-dim); padding: 0; width: min(920px, 96vw); max-height: 92vh; }
+.modal { background: var(--panel); color: var(--text); border: 1px solid var(--line-2); border-radius: 8px; padding: 0; width: min(920px, 96vw); max-height: 92vh; }
 .modal.small { width: min(440px, 94vw); }
 .modal::backdrop { background: rgba(0,0,0,.7); }
 .modal form { display: flex; flex-direction: column; max-height: 92vh; }
-.modal-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--amber); font-weight: 600; border-bottom: 1px solid var(--line); }
+.modal-h { display: flex; align-items: center; gap: 8px; padding: 10px 14px; color: var(--text); font-weight: 600; border-bottom: 1px solid var(--line); }
 .modal-h .mini { margin-left: auto; }
 .modal-b { overflow: auto; padding: 8px 12px; }
 .modal-f { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--line); }
-fieldset { border: 1px solid var(--line); margin: 0 0 10px; padding: 8px 10px; }
-legend { color: var(--amber); padding: 0 4px; }
+fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 10px; padding: 8px 10px; }
+legend { color: var(--accent); padding: 0 4px; }
 legend .dim { font-size: 11px; }
 label { display: block; color: var(--dim); margin: 4px 0; }
 label.row { display: flex; gap: 6px; align-items: center; }
 fieldset input:not([type=checkbox]), fieldset select, fieldset textarea {
-  display: block; width: 100%; margin-top: 2px; padding: 5px 7px; background: #000; border: 1px solid var(--line-2); color: var(--text);
+  display: block; width: 100%; margin-top: 2px; padding: 6px 8px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 4px; color: var(--text);
 }
-textarea { resize: vertical; font-size: 11.5px; white-space: pre; }
+textarea { resize: vertical; font: 11.5px var(--mono); white-space: pre; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
 .checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .checks label { display: flex; gap: 5px; align-items: center; margin: 0; color: var(--text); }
 .hint { color: var(--faint); margin: 4px 0 0; font-size: 11px; }
-code { color: var(--amber); }
-.keys div { padding: 3px 0; } .keys b { display: inline-block; min-width: 90px; color: var(--amber); }
+code { color: var(--accent); }
+.keys div { padding: 3px 0; } .keys b { display: inline-block; min-width: 90px; color: var(--accent); }
 
 /* ---------- responsive ---------- */
 @media (max-width: 1200px) {
@@ -264,6 +275,7 @@ code { color: var(--amber); }
       <div class="ph-tools" id="trendWindows"></div>
     </div>
     <div class="pb">
+      <div id="trendHelp"></div>
       <div class="tbl-wrap"><table class="tbl" id="trendTable"></table></div>
       <div class="detail" id="trendDetail"></div>
     </div>
@@ -575,68 +587,83 @@ return { DEFAULTS, loadSettings, saveSettings, resetSettings, fmt, parse };
 // ===== net.js =====
 const __mod_net = (() => {
 // Network layer: most free market sources (Yahoo, RSS, Nasdaq) don't send CORS
-// headers, so browser requests go through a proxy chain:
-//   1. your own Cloudflare Worker (settings.proxyUrl)  <- fast + reliable
-//   2. a direct request (works for CORS-friendly APIs such as Coinbase)
-//   3. public CORS proxies (rate limited; fine for light personal use)
-// The proxy that last succeeded is tried first next time.
+// headers, so the browser can't read them directly. Routes, in order:
+//   1. the local data helper (Start-Terminal.bat → http://localhost:8787)  <- recommended
+//   2. your own proxy URL from Settings (Cloudflare Worker or the local helper)
+//   3. a direct request (works for CORS-friendly APIs such as Coinbase)
+//   4. public CORS proxies, raced in parallel (unreliable; many now need API keys)
 
 const PUBLIC_PROXIES = [
-  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  (u) => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
 ];
 
+// Set by TTT-Server.ps1 when it serves the page.
+const LOCAL_HELPER = typeof window !== 'undefined' && window.TTT_LOCAL_PROXY && /^https?:$/.test(location.protocol)
+  ? location.origin : '';
+
 let settings = { proxyUrl: '', usePublicProxies: true };
-let preferred = null; // name of last-good route
 const netStats = { ok: 0, fail: 0, lastRoute: '' };
 
-function configureNet(s) { settings = s; preferred = null; }
+function configureNet(s) { settings = s; }
+const hasPrivateRoute = () => Boolean(LOCAL_HELPER || settings.proxyUrl);
+const routeLabel = () => LOCAL_HELPER ? 'local helper' : settings.proxyUrl ? 'your proxy' : 'public proxies only';
 
-function routes(url, { direct = false } = {}) {
-  const list = [];
-  if (settings.proxyUrl) {
-    const base = settings.proxyUrl.replace(/\/+$/, '');
-    list.push({ name: 'worker', url: `${base}/?url=${encodeURIComponent(url)}` });
-  }
-  if (direct) list.push({ name: 'direct', url });
-  if (settings.usePublicProxies || !settings.proxyUrl) {
-    PUBLIC_PROXIES.forEach((p, i) => list.push({ name: `public${i + 1}`, url: p(url) }));
-  }
-  if (preferred) list.sort((a, b) => (b.name === preferred) - (a.name === preferred));
-  return list;
-}
+const viaBase = (base, u) => `${base.replace(/\/+$/, '')}/?url=${encodeURIComponent(u)}`;
 
-async function attempt(url, timeoutMs) {
+async function attempt(url, timeoutMs, validate, signal) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t = setTimeout(() => ctrl.abort(new Error(`timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+  const onAbort = () => ctrl.abort(new Error('cancelled'));
+  signal?.addEventListener('abort', onAbort);
   try {
     const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return await r.text();
-  } finally { clearTimeout(t); }
+    const text = await r.text();
+    if (validate && !validate(text)) throw new Error('unexpected response');
+    return text;
+  } catch (e) {
+    throw ctrl.signal.aborted && ctrl.signal.reason instanceof Error ? ctrl.signal.reason : e;
+  } finally {
+    clearTimeout(t);
+    signal?.removeEventListener('abort', onAbort);
+  }
 }
 
 async function fetchText(url, opts = {}) {
-  const { timeoutMs = 9000, validate } = opts;
+  const { timeoutMs = 12000, validate } = opts;
+  const sequential = [];
+  if (opts.directFirst) sequential.push({ name: 'direct', url });
+  if (LOCAL_HELPER) sequential.push({ name: 'local helper', url: viaBase(LOCAL_HELPER, url) });
+  if (settings.proxyUrl) sequential.push({ name: 'your proxy', url: viaBase(settings.proxyUrl, url) });
+  if (opts.direct && !opts.directFirst) sequential.push({ name: 'direct', url });
+
   let lastErr;
-  if (opts.directFirst) {
+  for (const route of sequential) {
     try {
-      const text = await attempt(url, timeoutMs);
-      if (!validate || validate(text)) { netStats.ok++; return text; }
-    } catch (e) { lastErr = e; }
-  }
-  for (const route of routes(url, opts)) {
-    try {
-      const text = await attempt(route.url, timeoutMs);
-      if (validate && !validate(text)) throw new Error('unexpected response');
-      preferred = route.name;
+      const text = await attempt(route.url, timeoutMs, validate);
       netStats.ok++; netStats.lastRoute = route.name;
       return text;
     } catch (e) { lastErr = e; }
   }
+
+  if (settings.usePublicProxies || !hasPrivateRoute()) {
+    const stop = new AbortController();
+    try {
+      const text = await Promise.any(PUBLIC_PROXIES.map(p => attempt(p(url), timeoutMs, validate, stop.signal)));
+      netStats.ok++; netStats.lastRoute = 'public proxy';
+      return text;
+    } catch (e) {
+      lastErr = e.errors?.[0] || e;
+    } finally { stop.abort(); }
+  }
+
   netStats.fail++;
-  throw new Error(`fetch failed (${url.slice(0, 60)}…): ${lastErr?.message || 'no route'}`);
+  if (!hasPrivateRoute()) {
+    throw new Error('no data connection: open the terminal with Start-Terminal.bat (or set a proxy in Settings). Free public proxies are not responding.');
+  }
+  throw new Error(`${new URL(url).hostname}: ${lastErr?.message || 'failed'}`);
 }
 
 async function fetchJSON(url, opts = {}) {
@@ -647,7 +674,7 @@ async function fetchJSON(url, opts = {}) {
   return JSON.parse(text);
 }
 
-// Run async jobs with limited concurrency (be gentle on the proxies).
+// Run async jobs with limited concurrency (be gentle on the sources).
 async function pool(items, limit, fn) {
   const out = new Array(items.length);
   let i = 0;
@@ -662,7 +689,7 @@ async function pool(items, limit, fn) {
   return out;
 }
 
-return { netStats, configureNet, fetchText, fetchJSON, pool };
+return { netStats, configureNet, hasPrivateRoute, routeLabel, fetchText, fetchJSON, pool };
 })();
 
 // ===== market.js =====
@@ -1034,22 +1061,37 @@ async function loadEarnings(cfg) {
   const watch = new Set(cfg.earningsWatchlist.split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
   const minCap = cfg.earningsMinCapB * 1e9;
 
+  // Once a company has reported, Nasdaq resets its timing to "not supplied",
+  // so remember the BMO/AMC timing we saw earlier (kept for ~10 days).
+  let timing = {};
+  try { timing = JSON.parse(localStorage.getItem('ttt.earnTiming') || '{}'); } catch { timing = {}; }
+
   const fetchDay = async (date) => {
     const j = await cachedJSON(`earn.${date}`, `https://api.nasdaq.com/api/calendar/earnings?date=${date}`);
-    return (j?.data?.rows || []).map(r => ({
-      sym: r.symbol, name: r.name, cap: capNum(r.marketCap), when: timeTag(r.time), date,
-      eps: r.epsForecast || '—', ests: r.noOfEsts || '', ly: r.lastYearEPS || '—', fq: r.fiscalQuarterEnding || '',
-      watch: watch.has(r.symbol),
-    }));
+    return (j?.data?.rows || []).map(r => {
+      const key = `${date}|${r.symbol}`;
+      let when = timeTag(r.time);
+      if (when !== 'TNS') timing[key] = when; else if (timing[key]) when = timing[key];
+      return {
+        sym: r.symbol, name: r.name, cap: capNum(r.marketCap), when, date,
+        eps: r.epsForecast || '—', actual: r.eps || '', surprise: r.surprise || '',
+        ests: r.noOfEsts || '', ly: r.lastYearEPS || '—', fq: r.fiscalQuarterEnding || '',
+        watch: watch.has(r.symbol),
+      };
+    });
   };
 
   const [p, t, n] = await Promise.allSettled([prev, today, next].map(fetchDay));
+  const cutoff = shiftWeekday(today, -8);
+  for (const k of Object.keys(timing)) if (k.slice(0, 10) < cutoff) delete timing[k];
+  try { localStorage.setItem('ttt.earnTiming', JSON.stringify(timing)); } catch { /* quota */ }
   const keep = (rows) => (rows.status === 'fulfilled' ? rows.value : [])
     .filter(r => r.watch || r.cap >= minCap)
     .sort((a, b) => b.cap - a.cap);
 
   const groups = [
-    { title: `Reacting today — ${prev} after close`, rows: keep(p).filter(r => r.when === 'AMC') },
+    // AMC, plus reports whose timing Nasdaq no longer shows (BMO ones already reacted yesterday)
+    { title: `Reacting today — ${prev} after close`, rows: keep(p).filter(r => r.when !== 'BMO') },
     { title: `Today ${today} — before open`, rows: keep(t).filter(r => r.when !== 'AMC') },
     { title: `Today ${today} — after close`, rows: keep(t).filter(r => r.when === 'AMC') },
     { title: `Next ${next} — before open`, rows: keep(n).filter(r => r.when !== 'AMC') },
@@ -1099,20 +1141,6 @@ function mountTV(host, kind, config) {
   host.append(wrap);
 }
 
-function tickerTape(host, cfg) {
-  const symbols = [
-    ...cfg.instruments.filter(i => i.tv).map(i => ({ proName: i.tv, title: i.label })),
-    { proName: 'CBOE:VIX', title: 'VIX' },
-    { proName: 'TVC:DXY', title: 'DXY' },
-    { proName: 'TVC:US10Y', title: 'US10Y' },
-    { proName: 'FX:EURUSD', title: 'EURUSD' },
-    { proName: 'FX:USDJPY', title: 'USDJPY' },
-  ];
-  mountTV(host, 'ticker-tape', {
-    symbols, showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: 'dark', locale: 'en',
-  });
-}
-
 function heatmap(host, cfg) {
   mountTV(host, 'stock-heatmap', {
     exchanges: [], dataSource: cfg.heatmapSource, grouping: 'sector', blockSize: 'market_cap_basic',
@@ -1125,7 +1153,7 @@ function heatmap(host, cfg) {
 function chart(host, symbol, cfg) {
   mountTV(host, 'advanced-chart', {
     autosize: true, symbol, interval: cfg.chartInterval, timezone: 'America/New_York', theme: 'dark',
-    style: '1', locale: 'en', backgroundColor: 'rgba(0,0,0,1)', gridColor: 'rgba(40,40,40,0.6)',
+    style: '1', locale: 'en', backgroundColor: 'rgba(24,25,30,1)', gridColor: 'rgba(46,48,56,0.6)',
     allow_symbol_change: true, hide_side_toolbar: true, calendar: false, withdateranges: true,
     studies: ['STD;VWAP'], support_host: 'https://www.tradingview.com',
   });
@@ -1145,7 +1173,7 @@ function newsTimeline(host) {
   });
 }
 
-return { mountTV, tickerTape, heatmap, chart, econCalendar, newsTimeline };
+return { mountTV, heatmap, chart, econCalendar, newsTimeline };
 })();
 
 // ===== ai.js =====
@@ -1191,7 +1219,7 @@ return { aiBrief };
 // ===== app.js =====
 const __mod_app = (() => {
 const { loadSettings, saveSettings, resetSettings, fmt, parse, DEFAULTS } = __mod_config;
-const { configureNet, netStats, pool } = __mod_net;
+const { configureNet, netStats, pool, hasPrivateRoute, routeLabel } = __mod_net;
 const { loadInstrument, loadQuote, analyze, narrate, riskTone, nf, sgn, etParts, etTime } = __mod_market;
 const { loadNews, overnightStart } = __mod_news;
 const { loadEarnings, loadCalendar } = __mod_events;
@@ -1304,6 +1332,7 @@ async function refreshAll() {
     catch (e) { state.errors[k] = e.message; console.warn(k, e); }
     try { render(); } catch (e) { console.error('render', k, e); }
     renderBrief();
+    if (k === 'trend' || k === 'quotes') renderTape();
   }));
   state.busy = false;
   $('#btnRefresh').classList.remove('spin');
@@ -1355,6 +1384,8 @@ function renderTrend() {
     </tr>`;
   }).join('');
   $('#trendTable').innerHTML = `<thead>${head}</thead><tbody>${rows}</tbody>`;
+  const allFailed = cfg.instruments.some(i => state.trendErr[i.label]) && Object.keys(state.trendErr).length >= cfg.instruments.length - 1;
+  $('#trendHelp').innerHTML = allFailed ? connectionHelp() : '';
   $('#trendSub').textContent = state.updated.trend ? `5m bars · upd ${etTime(state.updated.trend)}` : '';
   $('#trendWindows').innerHTML = [[4, 8], [2, 6], [4, 12], [8, 24]].map(([a, b]) =>
     `<button class="mini ${a === w1 && b === w2 ? 'on' : ''}" data-win="${a},${b}">${a}/${b}H</button>`).join('');
@@ -1429,10 +1460,11 @@ function renderEarnings() {
   const capFmt = (c) => c >= 1e12 ? `$${(c / 1e12).toFixed(2)}T` : c ? `$${(c / 1e9).toFixed(0)}B` : '—';
   $('#earnSub').textContent = `≥ $${cfg.earningsMinCapB}B or watchlist`;
   $('#earnings').innerHTML = e.groups.map(g => `<div class="egroup"><h5>${esc(g.title)}</h5>${g.rows.length
-    ? `<table class="tbl"><thead><tr><th>SYM</th><th style="text-align:left">COMPANY</th><th>MKT CAP</th><th>EPS EST</th><th>LY EPS</th><th>FQ</th></tr></thead><tbody>${g.rows.map(r =>
+    ? `<table class="tbl"><thead><tr><th>SYM</th><th style="text-align:left">COMPANY</th><th>MKT CAP</th><th>EPS EST</th><th>ACTUAL</th><th>SURPR</th><th>FQ</th></tr></thead><tbody>${g.rows.map(r =>
       `<tr><td class="sym">${r.watch ? '<span class="star">★</span>' : ''}<a href="https://www.tradingview.com/symbols/${esc(r.sym)}/" target="_blank" rel="noopener">${esc(r.sym)}</a></td>
         <td style="text-align:left;max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</td>
-        <td>${capFmt(r.cap)}</td><td>${esc(r.eps)}</td><td class="dim">${esc(r.ly)}</td><td class="dim">${esc(r.fq)}</td></tr>`).join('')}</tbody></table>`
+        <td>${capFmt(r.cap)}</td><td>${esc(r.eps)}</td><td>${r.actual ? esc(r.actual) : `<span class="dim" title="last year">${esc(r.ly)} LY</span>`}</td>
+        <td class="${cls(parseFloat(r.surprise))}">${r.surprise ? sgn(parseFloat(r.surprise), 1) + '%' : '—'}</td><td class="dim">${esc(r.fq)}</td></tr>`).join('')}</tbody></table>`
     : '<div class="none">No market-moving reports.</div>'}</div>`).join('');
 }
 
@@ -1471,7 +1503,7 @@ function briefData() {
   const todayET = etParts(now).date;
   const events = state.calendar.filter(e => etParts(e.t).date === todayET || (e.t > now && e.t - now < 24 * 3600e3));
   const earn = state.earnings?.groups.filter(g => /Reacting|before open/.test(g.title) && !/^Next/.test(g.title))
-    .flatMap(g => g.rows.slice(0, 8).map(r => `${r.sym}${g.title.startsWith('Reacting') ? ' (AMC)' : ' (BMO)'}`)) || [];
+    .flatMap(g => g.rows.slice(0, 8).map(r => `${r.sym} (${r.when === 'TNS' ? (r.actual ? 'reported' : 'time n/a') : r.when})`)) || [];
   return { since, overnight, tone, themes, top, events, earn };
 }
 
@@ -1539,14 +1571,36 @@ async function runAI() {
   }
 }
 
+// Scrolling ticker tape built from our own data (always readable, no widget limits).
+function renderTape() {
+  const items = [
+    ...state.trend.map(a => ({ l: a.inst.label, v: nf(a.last, a.inst.dp), c: a.chg, p: a.pct, dp: a.inst.dp })),
+    ...state.quotes.filter(q => !q.err && isFinite(q.last)).map(q => ({ l: q.label, v: nf(q.last, q.dp), c: q.chg, p: q.pct, dp: q.dp })),
+  ];
+  const tape = $('#tape');
+  if (!items.length) {
+    tape.innerHTML = `<div class="tape-msg">${state.busy ? 'Loading prices…' : 'Prices unavailable — see the message in the trend monitor.'}</div>`;
+    return;
+  }
+  const html = items.map(i => `<span class="tk"><b>${esc(i.l)}</b> ${i.v} <span class="${cls(i.c)}">${i.c > 0 ? '▲' : i.c < 0 ? '▼' : ''} ${sgn(i.c, i.dp)} (${sgn(i.p)}%)</span></span>`).join('');
+  tape.innerHTML = `<div class="tape-track" style="animation-duration:${Math.max(30, items.length * 4)}s">${html}${html}</div>`;
+}
+
+function connectionHelp() {
+  if (hasPrivateRoute()) return '';
+  return `<div class="conn-help"><b>No data connection.</b> Browsers can't read Yahoo, Nasdaq or news feeds directly, and the free public relays are not responding.
+    Close this page and open the terminal with <code>Start-Terminal.bat</code> (in the same folder as this file) — it runs a small helper on your PC that fetches the data.
+    Or paste a proxy URL in Settings (S).</div>`;
+}
+
 function renderStatusbar() {
   const bits = [
-    `Data route: ${netStats.lastRoute || '—'}${cfg.proxyUrl ? '' : ' (no private proxy configured)'}`,
+    `Data route: ${routeLabel()}${netStats.lastRoute ? ` (last: ${netStats.lastRoute})` : ''}`,
     `Requests ok ${netStats.ok} / failed ${netStats.fail}`,
   ];
   if (state.newsFailed.length) bits.push(`<span class="err">Feeds down: ${esc(state.newsFailed.join(', '))}</span>`);
   for (const [k, v] of Object.entries(state.errors)) bits.push(`<span class="err">${k}: ${esc(v)}</span>`);
-  bits.push('Futures/quotes via Yahoo Finance & Coinbase (may be delayed) · Heat map, chart & tape via TradingView · Calendar via ForexFactory · Earnings via Nasdaq · Not investment advice');
+  bits.push('Futures/quotes via Yahoo Finance & Coinbase (may be delayed) · Heat map & chart via TradingView · Calendar via ForexFactory · Earnings via Nasdaq · Not investment advice');
   $('#statusbar').innerHTML = bits.map(b => `<span>${b}</span>`).join('');
 }
 
@@ -1565,7 +1619,7 @@ function selectInstrument(i) {
 }
 
 function mountWidgets() {
-  TV.tickerTape($('#tape'), cfg);
+  renderTape();
   if (cfg.panels.heatmap) TV.heatmap($('#heatmap'), cfg);
   $('#chartTabs').innerHTML = cfg.instruments.map((inst, i) => inst.tv ? `<button class="mini" data-i="${i}">${esc(inst.label)}</button>` : '').join('');
   selectInstrument(state.selected);

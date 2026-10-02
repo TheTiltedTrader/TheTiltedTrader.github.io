@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Bundle the terminal into ONE self-contained HTML file that opens straight
-from a folder on your PC (file://) — no web server needed.
+from a folder on your PC.
 
 Browsers refuse to load separate ES-module files from file://, so this inlines
 terminal.css and every js/*.js module (each wrapped in its own scope) into
-TTT-Terminal.html.
+local/TTT-Terminal.html. Open it with local/Start-Terminal.bat, which starts a
+small PowerShell helper that fetches the market data for the page.
 
-    python3 terminal/build_local.py
+    python3 terminal/build_local.py   # also writes local/TTT-Terminal.zip
 """
 import re
 from pathlib import Path
@@ -43,9 +44,20 @@ def main() -> None:
     if 'js/app.js' in html or 'terminal.css' in html:
         raise SystemExit('index.html layout changed; update build_local.py')
 
-    out = ROOT / 'TTT-Terminal.html'
+    local = ROOT / 'local'
+    out = local / 'TTT-Terminal.html'
     out.write_text(html)
     print(f'wrote {out} ({out.stat().st_size // 1024} KB)')
+
+    # Windows needs CRLF in .bat files
+    bat = local / 'Start-Terminal.bat'
+    bat.write_bytes(bat.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
+
+    import zipfile
+    with zipfile.ZipFile(local / 'TTT-Terminal.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+        for name in ('Start-Terminal.bat', 'TTT-Server.ps1', 'TTT-Terminal.html', 'README.txt'):
+            z.write(local / name, f'TTT-Terminal/{name}')
+    print(f'wrote {local / "TTT-Terminal.zip"}')
 
 
 if __name__ == '__main__':

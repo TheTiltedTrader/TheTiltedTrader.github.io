@@ -1,66 +1,81 @@
 // Network layer: most free market sources (Yahoo, RSS, Nasdaq) don't send CORS
-// headers, so browser requests go through a proxy chain:
-//   1. your own Cloudflare Worker (settings.proxyUrl)  <- fast + reliable
-//   2. a direct request (works for CORS-friendly APIs such as Coinbase)
-//   3. public CORS proxies (rate limited; fine for light personal use)
-// The proxy that last succeeded is tried first next time.
+// headers, so the browser can't read them directly. Routes, in order:
+//   1. the local data helper (Start-Terminal.bat → http://localhost:8787)  <- recommended
+//   2. your own proxy URL from Settings (Cloudflare Worker or the local helper)
+//   3. a direct request (works for CORS-friendly APIs such as Coinbase)
+//   4. public CORS proxies, raced in parallel (unreliable; many now need API keys)
 
 const PUBLIC_PROXIES = [
-  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  (u) => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
 ];
 
+// Set by TTT-Server.ps1 when it serves the page.
+const LOCAL_HELPER = typeof window !== 'undefined' && window.TTT_LOCAL_PROXY && /^https?:$/.test(location.protocol)
+  ? location.origin : '';
+
 let settings = { proxyUrl: '', usePublicProxies: true };
-let preferred = null; // name of last-good route
 export const netStats = { ok: 0, fail: 0, lastRoute: '' };
 
-export function configureNet(s) { settings = s; preferred = null; }
+export function configureNet(s) { settings = s; }
+export const hasPrivateRoute = () => Boolean(LOCAL_HELPER || settings.proxyUrl);
+export const routeLabel = () => LOCAL_HELPER ? 'local helper' : settings.proxyUrl ? 'your proxy' : 'public proxies only';
 
-function routes(url, { direct = false } = {}) {
-  const list = [];
-  if (settings.proxyUrl) {
-    const base = settings.proxyUrl.replace(/\/+$/, '');
-    list.push({ name: 'worker', url: `${base}/?url=${encodeURIComponent(url)}` });
-  }
-  if (direct) list.push({ name: 'direct', url });
-  if (settings.usePublicProxies || !settings.proxyUrl) {
-    PUBLIC_PROXIES.forEach((p, i) => list.push({ name: `public${i + 1}`, url: p(url) }));
-  }
-  if (preferred) list.sort((a, b) => (b.name === preferred) - (a.name === preferred));
-  return list;
-}
+const viaBase = (base, u) => `${base.replace(/\/+$/, '')}/?url=${encodeURIComponent(u)}`;
 
-async function attempt(url, timeoutMs) {
+async function attempt(url, timeoutMs, validate, signal) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t = setTimeout(() => ctrl.abort(new Error(`timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+  const onAbort = () => ctrl.abort(new Error('cancelled'));
+  signal?.addEventListener('abort', onAbort);
   try {
     const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return await r.text();
-  } finally { clearTimeout(t); }
+    const text = await r.text();
+    if (validate && !validate(text)) throw new Error('unexpected response');
+    return text;
+  } catch (e) {
+    throw ctrl.signal.aborted && ctrl.signal.reason instanceof Error ? ctrl.signal.reason : e;
+  } finally {
+    clearTimeout(t);
+    signal?.removeEventListener('abort', onAbort);
+  }
 }
 
 export async function fetchText(url, opts = {}) {
-  const { timeoutMs = 9000, validate } = opts;
+  const { timeoutMs = 12000, validate } = opts;
+  const sequential = [];
+  if (opts.directFirst) sequential.push({ name: 'direct', url });
+  if (LOCAL_HELPER) sequential.push({ name: 'local helper', url: viaBase(LOCAL_HELPER, url) });
+  if (settings.proxyUrl) sequential.push({ name: 'your proxy', url: viaBase(settings.proxyUrl, url) });
+  if (opts.direct && !opts.directFirst) sequential.push({ name: 'direct', url });
+
   let lastErr;
-  if (opts.directFirst) {
+  for (const route of sequential) {
     try {
-      const text = await attempt(url, timeoutMs);
-      if (!validate || validate(text)) { netStats.ok++; return text; }
-    } catch (e) { lastErr = e; }
-  }
-  for (const route of routes(url, opts)) {
-    try {
-      const text = await attempt(route.url, timeoutMs);
-      if (validate && !validate(text)) throw new Error('unexpected response');
-      preferred = route.name;
+      const text = await attempt(route.url, timeoutMs, validate);
       netStats.ok++; netStats.lastRoute = route.name;
       return text;
     } catch (e) { lastErr = e; }
   }
+
+  if (settings.usePublicProxies || !hasPrivateRoute()) {
+    const stop = new AbortController();
+    try {
+      const text = await Promise.any(PUBLIC_PROXIES.map(p => attempt(p(url), timeoutMs, validate, stop.signal)));
+      netStats.ok++; netStats.lastRoute = 'public proxy';
+      return text;
+    } catch (e) {
+      lastErr = e.errors?.[0] || e;
+    } finally { stop.abort(); }
+  }
+
   netStats.fail++;
-  throw new Error(`fetch failed (${url.slice(0, 60)}…): ${lastErr?.message || 'no route'}`);
+  if (!hasPrivateRoute()) {
+    throw new Error('no data connection: open the terminal with Start-Terminal.bat (or set a proxy in Settings). Free public proxies are not responding.');
+  }
+  throw new Error(`${new URL(url).hostname}: ${lastErr?.message || 'failed'}`);
 }
 
 export async function fetchJSON(url, opts = {}) {
@@ -71,7 +86,7 @@ export async function fetchJSON(url, opts = {}) {
   return JSON.parse(text);
 }
 
-// Run async jobs with limited concurrency (be gentle on the proxies).
+// Run async jobs with limited concurrency (be gentle on the sources).
 export async function pool(items, limit, fn) {
   const out = new Array(items.length);
   let i = 0;

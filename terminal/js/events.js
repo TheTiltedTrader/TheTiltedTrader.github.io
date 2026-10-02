@@ -42,22 +42,37 @@ export async function loadEarnings(cfg) {
   const watch = new Set(cfg.earningsWatchlist.split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
   const minCap = cfg.earningsMinCapB * 1e9;
 
+  // Once a company has reported, Nasdaq resets its timing to "not supplied",
+  // so remember the BMO/AMC timing we saw earlier (kept for ~10 days).
+  let timing = {};
+  try { timing = JSON.parse(localStorage.getItem('ttt.earnTiming') || '{}'); } catch { timing = {}; }
+
   const fetchDay = async (date) => {
     const j = await cachedJSON(`earn.${date}`, `https://api.nasdaq.com/api/calendar/earnings?date=${date}`);
-    return (j?.data?.rows || []).map(r => ({
-      sym: r.symbol, name: r.name, cap: capNum(r.marketCap), when: timeTag(r.time), date,
-      eps: r.epsForecast || '—', ests: r.noOfEsts || '', ly: r.lastYearEPS || '—', fq: r.fiscalQuarterEnding || '',
-      watch: watch.has(r.symbol),
-    }));
+    return (j?.data?.rows || []).map(r => {
+      const key = `${date}|${r.symbol}`;
+      let when = timeTag(r.time);
+      if (when !== 'TNS') timing[key] = when; else if (timing[key]) when = timing[key];
+      return {
+        sym: r.symbol, name: r.name, cap: capNum(r.marketCap), when, date,
+        eps: r.epsForecast || '—', actual: r.eps || '', surprise: r.surprise || '',
+        ests: r.noOfEsts || '', ly: r.lastYearEPS || '—', fq: r.fiscalQuarterEnding || '',
+        watch: watch.has(r.symbol),
+      };
+    });
   };
 
   const [p, t, n] = await Promise.allSettled([prev, today, next].map(fetchDay));
+  const cutoff = shiftWeekday(today, -8);
+  for (const k of Object.keys(timing)) if (k.slice(0, 10) < cutoff) delete timing[k];
+  try { localStorage.setItem('ttt.earnTiming', JSON.stringify(timing)); } catch { /* quota */ }
   const keep = (rows) => (rows.status === 'fulfilled' ? rows.value : [])
     .filter(r => r.watch || r.cap >= minCap)
     .sort((a, b) => b.cap - a.cap);
 
   const groups = [
-    { title: `Reacting today — ${prev} after close`, rows: keep(p).filter(r => r.when === 'AMC') },
+    // AMC, plus reports whose timing Nasdaq no longer shows (BMO ones already reacted yesterday)
+    { title: `Reacting today — ${prev} after close`, rows: keep(p).filter(r => r.when !== 'BMO') },
     { title: `Today ${today} — before open`, rows: keep(t).filter(r => r.when !== 'AMC') },
     { title: `Today ${today} — after close`, rows: keep(t).filter(r => r.when === 'AMC') },
     { title: `Next ${next} — before open`, rows: keep(n).filter(r => r.when !== 'AMC') },
