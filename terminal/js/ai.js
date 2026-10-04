@@ -22,14 +22,14 @@ If the market is OPEN or in pre-market, format (plain text, short lines, no tabl
 BIAS: one line (risk-on/off/mixed + why).
 WHAT MOVED: 3-5 bullets on the HIGH-impact items and how the futures reacted.
 FUTURES: one line per instrument: trend over the 4h/8h windows and the key levels (ON high/low, prior-day high/low, VWAP).
-CATALYSTS: scheduled US data, Fed speakers and earnings still ahead, with ET times.
+CATALYSTS: today's scheduled US data, Fed speakers and earnings still ahead (ET times), then the rest of the WEEK AHEAD red-folder events as 'Day Mon D: event' lines.
 PLAYBOOK: 2-4 if/then scenarios using the levels above.
 
 If the market is CLOSED (weekend, holiday, or the daily halt), write a recap instead — there is always something to say:
 LAST SESSION: how the futures finished (day and 5-day change, where they closed vs key levels).
 WHAT MOVED THIS WEEK: the HIGH-impact items of the past few days and the reactions.
 SINCE THE CLOSE: anything important that hit while closed (it is unpriced: say what could matter at the reopen).
-AHEAD: scheduled US red/orange events and earnings still to come this week, if listed.
+WEEK AHEAD: every HIGH (red-folder) US event in the WEEK AHEAD data as 'Day Mon D, time: event (fcst/prev)', plus mega-cap earnings; mention notable INTERMEDIATE ones briefly. Flag estimated ratings as such.
 PREP: 2-3 bullets on levels and scenarios for the reopen.
 
 Keep it under 350 words.`;

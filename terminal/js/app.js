@@ -2,7 +2,7 @@ import { loadSettings, saveSettings, resetSettings, fmt, parse, DEFAULTS } from 
 import { configureNet, netStats, pool, hasPrivateRoute, routeLabel } from './net.js';
 import { loadInstrument, loadQuote, analyze, narrate, riskTone, nf, sgn, etParts, etTime } from './market.js';
 import { loadNews, overnightStart } from './news.js';
-import { loadEarnings, loadCalendar } from './events.js';
+import { loadEarnings, loadCalendar, loadWeekAhead } from './events.js';
 import * as TV from './widgets.js';
 import { aiBrief } from './ai.js';
 import { loadReactionData, tierNews, tierEvent } from './impact.js';
@@ -16,7 +16,7 @@ let cfg = loadSettings();
 configureNet(cfg);
 
 const state = {
-  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [], events: [], rx: null,
+  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [], events: [], rx: null, week: null,
   aiAt: 0, aiErr: '', aiBusy: false,
   selected: 0, newsTab: 'HIGH IMPACT', newsQuery: '', seenLinks: new Set(), ai: '', errors: {},
   updated: {}, busy: false,
@@ -97,6 +97,7 @@ async function refreshNews() {
 }
 async function refreshEarnings() { state.earnings = await loadEarnings(cfg); state.updated.earnings = Date.now(); }
 async function refreshCalendar() { state.calendar = await loadCalendar(); state.updated.calendar = Date.now(); }
+async function refreshWeek() { state.week = await loadWeekAhead(cfg); state.updated.week = Date.now(); }
 async function refreshImpact() { state.rx = await loadReactionData(cfg); state.updated.impact = Date.now(); }
 
 async function refreshAll() {
@@ -111,6 +112,7 @@ async function refreshAll() {
     calendar: [refreshCalendar, renderCalendar],
     earnings: [refreshEarnings, renderEarnings],
     impact: [refreshImpact, () => {}],
+    week: [refreshWeek, renderWeekAhead],
   };
   await Promise.all(Object.entries(jobs).map(async ([k, [load, render]]) => {
     try { await load(); delete state.errors[k]; }
@@ -312,7 +314,7 @@ function renderEarnings() {
 function renderCalendar(autoScroll = true) {
   const now = Date.now();
   const today = etParts(now).date;
-  $('#calSub').textContent = `US red = high · US orange = intermediate · others only if futures moved ≥ ${cfg.impactFutPct}% · ET`;
+  $('#calSub').textContent = `US only · red = high · orange = intermediate · others only if futures moved ≥ ${cfg.impactFutPct}% · ET`;
   if (!state.events.length) {
     $('#calendar').innerHTML = `<div class="msg ${state.errors.calendar ? 'err' : ''}">${state.errors.calendar ? 'Calendar unavailable — ' + esc(state.errors.calendar) + ' (TradingView tab still works).' : state.updated.calendar ? 'No US red/orange events this week.' : '<span class="skeleton">loading…</span>'}</div>`;
     return;
@@ -331,6 +333,50 @@ function renderCalendar(autoScroll = true) {
   }).join('')}</tbody></table>`;
   const firstUp = $('#calendar .cal-row:not(.past)');
   if (firstUp && autoScroll) $('#calendar').scrollTop = Math.max(0, firstUp.offsetTop - 40);
+}
+
+// ---------------------------------------------------------------- week ahead
+const dayLabel = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+function weekCounts(w) {
+  const ev = w.days.flatMap(d => d.events);
+  return { high: ev.filter(e => e.impact === 'High').length, mid: ev.filter(e => e.impact === 'Medium').length, earn: w.days.reduce((s, d) => s + d.earnings.length, 0) };
+}
+
+function renderWeekAhead() {
+  const w = state.week, el = $('#weekAhead');
+  if (!w) {
+    el.innerHTML = `<div class="msg ${state.errors.week ? 'err' : ''}">${state.errors.week ? 'Week ahead unavailable — ' + esc(state.errors.week) : '<span class="skeleton">loading…</span>'}</div>`;
+    return;
+  }
+  const now = Date.now(), today = etParts(now).date;
+  const c = weekCounts(w);
+  const range = `${dayLabel(w.days[0].date)} – ${dayLabel(w.days.at(-1).date)}`;
+  const est = w.days.some(d => d.source === 'nasdaq');
+  el.innerHTML = `<div class="wk-sum"><b>${c.high} high-impact</b> · ${c.mid} intermediate US events${c.earn ? ` · ${c.earn} mega-cap earnings` : ''} <span class="dim">· ${range} · times ET</span></div>
+    ${w.days.map(d => `<div class="wk-day ${d.date === today ? 'today' : ''}">
+      <div class="wk-date">${dayLabel(d.date).toUpperCase()}${d.date === today ? ' · TODAY' : ''}</div>
+      <div class="wk-items">${d.events.map(e => e.impact === 'Holiday'
+        ? `<div class="wk-ev hol">🏛 ${esc(e.title)} <span class="dim">(US holiday — thin liquidity / early closes possible)</span></div>`
+        : `<div class="wk-ev ${e.impact === 'High' ? 'hi' : 'mid'} ${e.t < now - 5 * 60e3 ? 'past' : ''}">
+            <span class="impact ${esc(e.impact)}"></span><span class="wk-t">${etTime(e.t)}</span>
+            <span class="wk-n">${esc(e.title)}</span>
+            <span class="dim">${e.forecast ? `fcst ${esc(e.forecast)} · ` : ''}${e.previous ? `prev ${esc(e.previous)}` : ''}</span>${e.est ? ' <span class="est" title="Rating estimated until Forex Factory publishes this week">est.</span>' : ''}</div>`).join('')
+        || '<div class="wk-ev none">No high or intermediate US events</div>'}
+        ${d.earnings.length ? `<div class="wk-ev earn">Earnings: ${esc(d.earnings.join(', '))}</div>` : ''}</div>
+    </div>`).join('')}
+    ${est ? `<p class="hint">"est." = Forex Factory hasn't published that week yet (it does on Sundays); the rating is estimated from the events it usually marks red/orange, using Nasdaq's US calendar.${w.nasdaqErr ? ` Nasdaq: ${esc(w.nasdaqErr)}` : ''}</p>` : ''}`;
+}
+
+// Text lines (red-folder only) for the brief and the AI context.
+function weekHighLines() {
+  if (!state.week) return [];
+  return state.week.days.map(d => {
+    const hi = d.events.filter(e => e.impact === 'High' || e.impact === 'Holiday');
+    const parts = [...hi.map(e => e.impact === 'Holiday' ? `${e.title} (holiday)` : `${etTime(e.t)} ${e.title}${e.forecast ? ` (fcst ${e.forecast}, prev ${e.previous || 'n/a'})` : ''}${e.est ? ' [est.]' : ''}`),
+      ...(d.earnings.length ? [`earnings ${d.earnings.join(', ')}`] : [])];
+    return parts.length ? { date: d.date, text: parts.join(' · ') } : null;
+  }).filter(Boolean);
 }
 
 // ---------------------------------------------------------------- brief
@@ -405,9 +451,11 @@ function renderBrief() {
     ${b.weekHigh.length ? `<h5>HIGH-IMPACT EARLIER THIS WEEK</h5><ul>${b.weekHigh.map(itemLine).join('')}</ul>` : ''}
     <h5>THEMES</h5>
     ${b.themes.slice(0, 5).map(t => `<div class="theme"><b>${esc(t.name)}</b> <span class="dim">(${t.items.length})</span> — <span class="dim">${t.items.slice(0, 2).map(i => esc(i.title.slice(0, 140))).join(' · ')}</span></div>`).join('') || '<div class="dim">—</div>'}
-    <h5>${b.closed ? 'AHEAD · NEXT 72H' : 'CATALYSTS · NEXT 24H'}</h5>
+    ${b.closed ? '' : `<h5>CATALYSTS · NEXT 24H</h5>
     <ul>${b.events.map(e => `<li><span class="impact ${esc(e.ffImpact)}"></span>${fmtWhen(e.t)} ${esc(e.country)} ${esc(e.title)}${e.forecast ? ` <span class="dim">f ${esc(e.forecast)} / p ${esc(e.previous)}</span>` : ''}</li>`).join('') || `<li class="dim">No US red/orange events in the next ${b.horizonH}h${b.closed ? ' (Forex Factory lists the current week only)' : ''}.</li>`}
-    ${b.earn.length ? `<li>Earnings: ${esc(b.earn.join(', '))}</li>` : ''}</ul>`;
+    ${b.earn.length ? `<li>Earnings: ${esc(b.earn.join(', '))}</li>` : ''}</ul>`}
+    <h5>WEEK AHEAD · HIGH IMPACT (US red folder)${state.week ? ` · ${esc(dayLabel(state.week.days[0].date))} – ${esc(dayLabel(state.week.days.at(-1).date))}` : ''}</h5>
+    <ul>${state.week ? (weekHighLines().map(l => `<li><b>${esc(dayLabel(l.date))}</b> — ${esc(l.text)}</li>`).join('') || '<li class="dim">No red-folder US events expected.</li>') : '<li class="skeleton">loading…</li>'}</ul>`;
   $('#brief').innerHTML = `<div class="brief">${html}</div>`;
 }
 
@@ -433,6 +481,13 @@ function briefText() {
   earlier.filter(i => tierOf(i) === 'HIGH').slice(0, 15).forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 300)}`));
   L.push('', 'EARLIER THIS WEEK — OTHER IMPORTANT (LOW/INTERMEDIATE):');
   earlier.filter(i => ['LOW', 'INTERMEDIATE'].includes(tierOf(i))).sort(byImpact).slice(0, 15).forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 200)}`));
+  if (state.week) {
+    L.push('', `WEEK AHEAD — US EVENTS (${dayLabel(state.week.days[0].date)} to ${dayLabel(state.week.days.at(-1).date)}, ET; [est.] = rating estimated):`);
+    for (const d of state.week.days) {
+      const ev = d.events.map(e => e.impact === 'Holiday' ? `${e.title} (US holiday)` : `${etTime(e.t)} ${e.title} [${e.impact === 'High' ? 'HIGH' : 'INTERMEDIATE'}${e.est ? ', est.' : ''}]${e.forecast ? ` fcst ${e.forecast}` : ''}${e.previous ? ` prev ${e.previous}` : ''}`);
+      L.push(`- ${dayLabel(d.date)}: ${[...ev, ...(d.earnings.length ? [`earnings ${d.earnings.join(', ')}`] : [])].join('; ') || 'nothing major'}`);
+    }
+  }
   L.push('', 'US ECONOMIC CALENDAR THIS WEEK (ET):');
   state.events.forEach(e => L.push(`- ${fmtWhen(e.t)} ${e.country} ${e.title} [${e.impact.tier}${e.t <= b.now && e.impact.why ? ': ' + e.impact.why : ''}] fcst ${e.forecast || 'n/a'}, prev ${e.previous || 'n/a'}${e.t > b.now ? ' (upcoming)' : ''}`));
   if (state.earnings) state.earnings.groups.forEach(g => g.rows.length && L.push(`- Earnings ${g.title}: ${g.rows.slice(0, 12).map(r => r.sym + (r.surprise ? ` (surprise ${r.surprise}%)` : '')).join(', ')}`));
@@ -685,10 +740,12 @@ function bind() {
   $('#newsTabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) { state.newsTab = b.dataset.tab; renderNews(); } };
   $('#newsSearch').oninput = (e) => { state.newsQuery = e.target.value; renderNews(); };
   $$('[data-cal]').forEach(b => b.onclick = () => {
-    const tv = b.dataset.cal === 'tv';
+    const tab = b.dataset.cal, tv = tab === 'tv';
     $$('[data-cal]').forEach(x => x.classList.toggle('on', x === b));
-    $('#calendar').classList.toggle('hidden', tv);
+    $('#weekAhead').classList.toggle('hidden', tab !== 'week');
+    $('#calendar').classList.toggle('hidden', tab !== 'list');
     $('#calendarTV').classList.toggle('hidden', !tv);
+    if (tab === 'list') renderCalendar();
     if (tv && !$('#calendarTV').children.length) TV.econCalendar($('#calendarTV'));
   });
 

@@ -97,11 +97,13 @@
   <section class="panel span-7" data-panel="calendar">
     <div class="ph"><span class="fn">ECO</span> ECONOMIC CALENDAR <span class="ph-sub" id="calSub"></span>
       <div class="ph-tools">
-        <button class="mini on" data-cal="list">TABLE</button>
+        <button class="mini on" data-cal="week">WEEK AHEAD</button>
+        <button class="mini" data-cal="list">THIS WEEK</button>
         <button class="mini" data-cal="tv">TRADINGVIEW</button>
       </div>
     </div>
-    <div class="pb scroll" id="calendar"></div>
+    <div class="pb scroll" id="weekAhead"></div>
+    <div class="pb scroll hidden" id="calendar"></div>
     <div class="pb flush hidden" id="calendarTV"></div>
   </section>
 
@@ -179,7 +181,7 @@
         <label>Mag 10 tickers <input name="mag10"></label>
         <p class="hint">News, posts and data releases are HIGH only if, within the window after they hit, at least N of the listed futures moved by the futures threshold,
           or a Mag 10 stock named in the story moved by the stock threshold. Important stories without a move are LOW.
-          Forex Factory: US red = HIGH, US orange = INTERMEDIATE, all other events hidden unless the futures moved.</p>
+          Economic calendar shows US events only: Forex Factory red = HIGH, orange = INTERMEDIATE, other US events only if the futures moved.</p>
       </fieldset>
 
       <fieldset>

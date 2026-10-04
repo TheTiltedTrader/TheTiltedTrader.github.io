@@ -190,6 +190,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ai-out.stale { opacity: .6; }
 .ai-hint { margin-bottom: 8px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: 6px; color: var(--dim); }
 .closed-note { margin-bottom: 6px; padding: 6px 10px; border-radius: 6px; background: var(--dn-2); color: #ffc2c8; font-size: 12px; }
+.wk-sum { margin-bottom: 8px; font-size: 12.5px; }
+.wk-day { display: grid; grid-template-columns: 112px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.wk-day.today .wk-date { color: var(--accent); }
+.wk-date { font-weight: 700; font-size: 11.5px; letter-spacing: .4px; color: var(--text); padding-top: 1px; }
+.wk-ev { padding: 1px 0; }
+.wk-ev.hi .wk-n { font-weight: 600; }
+.wk-ev.mid { color: #c9cbd2; }
+.wk-ev.past { opacity: .45; }
+.wk-ev.none, .wk-ev.hol { color: var(--dim); }
+.wk-ev.earn { color: var(--warn); }
+.wk-t { display: inline-block; min-width: 44px; color: var(--dim); }
+.est { font-size: 10px; padding: 0 4px; border: 1px dashed var(--line-2); border-radius: 3px; color: var(--dim); }
 .update-note { padding: 8px 10px; border-radius: 6px; background: #3a2e05; color: #ffe08a; }
 
 /* ---------- earnings / calendar ---------- */

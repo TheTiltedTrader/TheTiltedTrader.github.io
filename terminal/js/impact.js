@@ -4,8 +4,8 @@
 // actually reacted: within `impactWindowMin` minutes of it hitting, at least
 // `impactMinFutures` US index futures (ES/NQ/RTY/YM) moved >= `impactFutPct`, or a Mag 10 stock the item is
 // about moved >= `impactMagPct`. Important-looking items that didn't move the
-// market are LOW. Forex Factory: US red = HIGH, US orange = INTERMEDIATE,
-// everything else is hidden unless the futures reacted.
+// market are LOW. Forex Factory (US events only): red = HIGH, orange = INTERMEDIATE,
+// other US events hidden unless the futures reacted.
 
 import { yahooBars } from './market.js';
 import { pool } from './net.js';
@@ -107,8 +107,11 @@ export function tierNews(item, rx, cfg, now = Date.now()) {
 }
 
 // Tier a Forex Factory event. Returns null for events that should not be shown.
+// Only US events are shown: red = HIGH, orange = INTERMEDIATE (HIGH if it moved
+// the futures), other US events only if they moved the futures.
 export function tierEvent(ev, rx, cfg, now = Date.now(), ctx = {}) {
-  const us = ev.country === 'USD';
+  if (ev.country !== 'USD') return null;
+  const us = true;
   const released = ev.t <= now;
   const m = rx && released ? measure({ ...ev, desc: '' }, rx, cfg, now, { magOnlyIfMentioned: true }) : null;
   const why = m?.hit ? moveText(m.moves, cfg.impactWindowMin) : m?.pending ? 'measuring market reaction…' : m?.maxFut

@@ -202,6 +202,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ai-out.stale { opacity: .6; }
 .ai-hint { margin-bottom: 8px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: 6px; color: var(--dim); }
 .closed-note { margin-bottom: 6px; padding: 6px 10px; border-radius: 6px; background: var(--dn-2); color: #ffc2c8; font-size: 12px; }
+.wk-sum { margin-bottom: 8px; font-size: 12.5px; }
+.wk-day { display: grid; grid-template-columns: 112px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.wk-day.today .wk-date { color: var(--accent); }
+.wk-date { font-weight: 700; font-size: 11.5px; letter-spacing: .4px; color: var(--text); padding-top: 1px; }
+.wk-ev { padding: 1px 0; }
+.wk-ev.hi .wk-n { font-weight: 600; }
+.wk-ev.mid { color: #c9cbd2; }
+.wk-ev.past { opacity: .45; }
+.wk-ev.none, .wk-ev.hol { color: var(--dim); }
+.wk-ev.earn { color: var(--warn); }
+.wk-t { display: inline-block; min-width: 44px; color: var(--dim); }
+.est { font-size: 10px; padding: 0 4px; border: 1px dashed var(--line-2); border-radius: 3px; color: var(--dim); }
 .update-note { padding: 8px 10px; border-radius: 6px; background: #3a2e05; color: #ffe08a; }
 
 /* ---------- earnings / calendar ---------- */
@@ -358,11 +370,13 @@ code { color: var(--accent); }
   <section class="panel span-7" data-panel="calendar">
     <div class="ph"><span class="fn">ECO</span> ECONOMIC CALENDAR <span class="ph-sub" id="calSub"></span>
       <div class="ph-tools">
-        <button class="mini on" data-cal="list">TABLE</button>
+        <button class="mini on" data-cal="week">WEEK AHEAD</button>
+        <button class="mini" data-cal="list">THIS WEEK</button>
         <button class="mini" data-cal="tv">TRADINGVIEW</button>
       </div>
     </div>
-    <div class="pb scroll" id="calendar"></div>
+    <div class="pb scroll" id="weekAhead"></div>
+    <div class="pb scroll hidden" id="calendar"></div>
     <div class="pb flush hidden" id="calendarTV"></div>
   </section>
 
@@ -440,7 +454,7 @@ code { color: var(--accent); }
         <label>Mag 10 tickers <input name="mag10"></label>
         <p class="hint">News, posts and data releases are HIGH only if, within the window after they hit, at least N of the listed futures moved by the futures threshold,
           or a Mag 10 stock named in the story moved by the stock threshold. Important stories without a move are LOW.
-          Forex Factory: US red = HIGH, US orange = INTERMEDIATE, all other events hidden unless the futures moved.</p>
+          Economic calendar shows US events only: Forex Factory red = HIGH, orange = INTERMEDIATE, other US events only if the futures moved.</p>
       </fieldset>
 
       <fieldset>
@@ -1275,7 +1289,118 @@ async function loadCalendar() {
     .sort((a, b) => a.t - b.t);
 }
 
-return { loadEarnings, loadCalendar };
+// ---------------------------------------------------------------- week ahead
+// Expected US red/orange events for the next 5 trading days (with day + date).
+// Forex Factory only publishes the current week, so days it doesn't cover
+// (e.g. next week, seen from a weekend) come from Nasdaq's economic calendar,
+// rated with the names Forex Factory normally marks red/orange.
+
+const EST_RATING = [
+  // red
+  [/^(non-?farm payrolls|nonfarm payrolls)$/i, 'High'], [/^unemployment rate$/i, 'High'],
+  [/^average hourly earnings \((mom|m\/m)\)/i, 'High'], [/^(core )?cpi \((mom|yoy)\)/i, 'High'],
+  [/^(core )?ppi \(mom\)/i, 'High'], [/^core pce price index \((mom|yoy)\)/i, 'High'],
+  [/^(core )?retail sales \(mom\)/i, 'High'], [/^gdp \(qoq\)/i, 'High'],
+  [/fed interest rate decision|fomc statement|fomc press conference|fomc economic projections/i, 'High'],
+  [/fomc meeting minutes/i, 'High'], [/fed chair .*speaks|powell speaks/i, 'High'],
+  // orange
+  [/^initial jobless claims$/i, 'Medium'], [/^adp nonfarm employment change$/i, 'Medium'],
+  [/^jolts job openings$/i, 'Medium'], [/^cb consumer confidence$/i, 'Medium'],
+  [/^ism (manufacturing|non-manufacturing|services) pmi$/i, 'Medium'],
+  [/michigan consumer sentiment|uom consumer sentiment/i, 'Medium'],
+  [/^durable goods orders \(mom\)$/i, 'Medium'], [/^(ny )?empire state manufacturing index$/i, 'Medium'],
+  [/^philadelphia fed manufacturing index$/i, 'Medium'], [/^pce price index \((mom|yoy)\)$/i, 'Medium'],
+  [/^(fomc member|fed) .*speaks$/i, 'Medium'], [/^(president )?trump speaks$/i, 'Medium'],
+];
+const estRating = (name) => EST_RATING.find(([re]) => re.test(name))?.[1] || null;
+
+const decode = (s) => String(s ?? '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
+
+// "2026-10-06" + "08:30" (Eastern) → epoch ms
+function etToMs(date, hhmm) {
+  const [h, m] = (hhmm || '00:00').split(':').map(Number);
+  const guess = Date.parse(`${date}T${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:00Z`);
+  const p = etParts(guess);
+  return guess - (Date.UTC(p.y, p.m - 1, p.d, p.h, p.min) - guess);
+}
+const weekdayOf = (date) => new Date(`${date}T12:00:00Z`).getUTCDay();
+
+function weekAheadDays(now = Date.now()) {
+  const p = etParts(now);
+  let d = p.date;
+  // today counts until the cash close; weekends roll to Monday
+  if ([0, 6].includes(weekdayOf(d)) || p.h >= 16) d = shiftWeekday(d, 1);
+  const days = [d];
+  while (days.length < 5) days.push(shiftWeekday(days.at(-1), 1));
+  return days;
+}
+
+async function loadWeekAhead(cfg) {
+  const days = weekAheadDays();
+  const ff = await cachedJSON('ffcal', 'https://nfs.faireconomy.media/ff_calendar_thisweek.json').catch(() => []);
+  const ffRows = ff.map(r => ({ ...r, t: Date.parse(r.date) })).filter(r => r.t);
+  const ffDates = ffRows.map(r => etParts(r.t).date).sort();
+  const covered = (date) => ffDates.length && date >= ffDates[0] && date <= ffDates.at(-1);
+
+  const byDay = Object.fromEntries(days.map(d => [d, { date: d, events: [], earnings: [], source: covered(d) ? 'ff' : 'nasdaq' }]));
+  for (const r of ffRows) {
+    const d = etParts(r.t).date;
+    if (!byDay[d] || r.country !== 'USD') continue;
+    if (r.impact === 'High' || r.impact === 'Medium' || r.impact === 'Holiday') {
+      byDay[d].events.push({ t: r.t, title: r.title, impact: r.impact, forecast: r.forecast, previous: r.previous, est: false });
+    }
+  }
+
+  // Nasdaq for the uncovered days. Its ?date= returns the PREVIOUS day's events
+  // (verified Oct 2026), so query day+1 and calibrate on Initial Jobless Claims (a Thursday).
+  const need = days.filter(d => !covered(d));
+  let nasdaqErr = null;
+  if (need.length) {
+    const queries = [...new Set(need.flatMap(d => [d, calDay(d, 1)]))];
+    const res = await Promise.allSettled(queries.map(q =>
+      cachedJSON(`econ.${q}`, `https://api.nasdaq.com/api/calendar/economicevents?date=${q}`)
+        .then(j => ({ q, rows: (j?.data?.rows || []).filter(r => r.country === 'United States') }))));
+    const got = res.filter(r => r.status === 'fulfilled').map(r => r.value);
+    if (!got.length) nasdaqErr = res[0]?.reason?.message || 'Nasdaq calendar unavailable';
+    const claims = got.find(g => g.rows.some(r => /^initial jobless claims$/i.test(decode(r.eventName))));
+    const shift = claims && weekdayOf(claims.q) === 4 ? 0 : 1; // found on Thursday → no shift
+    for (const g of got) {
+      const d = shift ? calDay(g.q, -1) : g.q;
+      if (!byDay[d] || byDay[d].source !== 'nasdaq') continue;
+      for (const r of g.rows) {
+        const name = decode(r.eventName), impact = estRating(name);
+        if (!impact) continue;
+        byDay[d].events.push({ t: etToMs(d, r.gmt), title: name, impact, forecast: decode(r.consensus), previous: decode(r.previous), est: true });
+      }
+    }
+  }
+
+  // Mag 10 (and $300B+) earnings in the window
+  const mag = new Set(String(cfg.mag10 || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
+  await Promise.allSettled(days.map(async d => {
+    const j = await cachedJSON(`earn.${d}`, `https://api.nasdaq.com/api/calendar/earnings?date=${d}`);
+    byDay[d].earnings = (j?.data?.rows || [])
+      .filter(r => mag.has(r.symbol) || capNum(r.marketCap) >= 300e9)
+      .map(r => `${r.symbol} (${timeTag(r.time)})`);
+  }));
+
+  for (const d of days) {
+    const seen = new Set();
+    byDay[d].events = byDay[d].events
+      .sort((a, b) => a.t - b.t || (a.impact === 'High' ? -1 : 1))
+      .filter(e => !seen.has(e.title) && seen.add(e.title));
+  }
+  return { days: days.map(d => byDay[d]), nasdaqErr };
+}
+
+// Calendar-day shift (Nasdaq's off-by-one is in calendar days: Friday's events sit under Saturday).
+function calDay(date, n) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+return { loadEarnings, loadCalendar, weekAheadDays, loadWeekAhead };
 })();
 
 // ===== impact.js =====
@@ -1286,8 +1411,8 @@ const __mod_impact = (() => {
 // actually reacted: within `impactWindowMin` minutes of it hitting, at least
 // `impactMinFutures` US index futures (ES/NQ/RTY/YM) moved >= `impactFutPct`, or a Mag 10 stock the item is
 // about moved >= `impactMagPct`. Important-looking items that didn't move the
-// market are LOW. Forex Factory: US red = HIGH, US orange = INTERMEDIATE,
-// everything else is hidden unless the futures reacted.
+// market are LOW. Forex Factory (US events only): red = HIGH, orange = INTERMEDIATE,
+// other US events hidden unless the futures reacted.
 
 const { yahooBars } = __mod_market;
 const { pool } = __mod_net;
@@ -1388,8 +1513,11 @@ function tierNews(item, rx, cfg, now = Date.now()) {
 }
 
 // Tier a Forex Factory event. Returns null for events that should not be shown.
+// Only US events are shown: red = HIGH, orange = INTERMEDIATE (HIGH if it moved
+// the futures), other US events only if they moved the futures.
 function tierEvent(ev, rx, cfg, now = Date.now(), ctx = {}) {
-  const us = ev.country === 'USD';
+  if (ev.country !== 'USD') return null;
+  const us = true;
   const released = ev.t <= now;
   const m = rx && released ? measure({ ...ev, desc: '' }, rx, cfg, now, { magOnlyIfMentioned: true }) : null;
   const why = m?.hit ? moveText(m.moves, cfg.impactWindowMin) : m?.pending ? 'measuring market reaction…' : m?.maxFut
@@ -1491,14 +1619,14 @@ If the market is OPEN or in pre-market, format (plain text, short lines, no tabl
 BIAS: one line (risk-on/off/mixed + why).
 WHAT MOVED: 3-5 bullets on the HIGH-impact items and how the futures reacted.
 FUTURES: one line per instrument: trend over the 4h/8h windows and the key levels (ON high/low, prior-day high/low, VWAP).
-CATALYSTS: scheduled US data, Fed speakers and earnings still ahead, with ET times.
+CATALYSTS: today's scheduled US data, Fed speakers and earnings still ahead (ET times), then the rest of the WEEK AHEAD red-folder events as 'Day Mon D: event' lines.
 PLAYBOOK: 2-4 if/then scenarios using the levels above.
 
 If the market is CLOSED (weekend, holiday, or the daily halt), write a recap instead — there is always something to say:
 LAST SESSION: how the futures finished (day and 5-day change, where they closed vs key levels).
 WHAT MOVED THIS WEEK: the HIGH-impact items of the past few days and the reactions.
 SINCE THE CLOSE: anything important that hit while closed (it is unpriced: say what could matter at the reopen).
-AHEAD: scheduled US red/orange events and earnings still to come this week, if listed.
+WEEK AHEAD: every HIGH (red-folder) US event in the WEEK AHEAD data as 'Day Mon D, time: event (fcst/prev)', plus mega-cap earnings; mention notable INTERMEDIATE ones briefly. Flag estimated ratings as such.
 PREP: 2-3 bullets on levels and scenarios for the reopen.
 
 Keep it under 350 words.`;
@@ -1554,7 +1682,7 @@ const { loadSettings, saveSettings, resetSettings, fmt, parse, DEFAULTS } = __mo
 const { configureNet, netStats, pool, hasPrivateRoute, routeLabel } = __mod_net;
 const { loadInstrument, loadQuote, analyze, narrate, riskTone, nf, sgn, etParts, etTime } = __mod_market;
 const { loadNews, overnightStart } = __mod_news;
-const { loadEarnings, loadCalendar } = __mod_events;
+const { loadEarnings, loadCalendar, loadWeekAhead } = __mod_events;
 const TV = __mod_widgets;
 const { aiBrief } = __mod_ai;
 const { loadReactionData, tierNews, tierEvent } = __mod_impact;
@@ -1567,7 +1695,7 @@ let cfg = loadSettings();
 configureNet(cfg);
 
 const state = {
-  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [], events: [], rx: null,
+  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [], events: [], rx: null, week: null,
   aiAt: 0, aiErr: '', aiBusy: false,
   selected: 0, newsTab: 'HIGH IMPACT', newsQuery: '', seenLinks: new Set(), ai: '', errors: {},
   updated: {}, busy: false,
@@ -1648,6 +1776,7 @@ async function refreshNews() {
 }
 async function refreshEarnings() { state.earnings = await loadEarnings(cfg); state.updated.earnings = Date.now(); }
 async function refreshCalendar() { state.calendar = await loadCalendar(); state.updated.calendar = Date.now(); }
+async function refreshWeek() { state.week = await loadWeekAhead(cfg); state.updated.week = Date.now(); }
 async function refreshImpact() { state.rx = await loadReactionData(cfg); state.updated.impact = Date.now(); }
 
 async function refreshAll() {
@@ -1662,6 +1791,7 @@ async function refreshAll() {
     calendar: [refreshCalendar, renderCalendar],
     earnings: [refreshEarnings, renderEarnings],
     impact: [refreshImpact, () => {}],
+    week: [refreshWeek, renderWeekAhead],
   };
   await Promise.all(Object.entries(jobs).map(async ([k, [load, render]]) => {
     try { await load(); delete state.errors[k]; }
@@ -1863,7 +1993,7 @@ function renderEarnings() {
 function renderCalendar(autoScroll = true) {
   const now = Date.now();
   const today = etParts(now).date;
-  $('#calSub').textContent = `US red = high · US orange = intermediate · others only if futures moved ≥ ${cfg.impactFutPct}% · ET`;
+  $('#calSub').textContent = `US only · red = high · orange = intermediate · others only if futures moved ≥ ${cfg.impactFutPct}% · ET`;
   if (!state.events.length) {
     $('#calendar').innerHTML = `<div class="msg ${state.errors.calendar ? 'err' : ''}">${state.errors.calendar ? 'Calendar unavailable — ' + esc(state.errors.calendar) + ' (TradingView tab still works).' : state.updated.calendar ? 'No US red/orange events this week.' : '<span class="skeleton">loading…</span>'}</div>`;
     return;
@@ -1882,6 +2012,50 @@ function renderCalendar(autoScroll = true) {
   }).join('')}</tbody></table>`;
   const firstUp = $('#calendar .cal-row:not(.past)');
   if (firstUp && autoScroll) $('#calendar').scrollTop = Math.max(0, firstUp.offsetTop - 40);
+}
+
+// ---------------------------------------------------------------- week ahead
+const dayLabel = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+function weekCounts(w) {
+  const ev = w.days.flatMap(d => d.events);
+  return { high: ev.filter(e => e.impact === 'High').length, mid: ev.filter(e => e.impact === 'Medium').length, earn: w.days.reduce((s, d) => s + d.earnings.length, 0) };
+}
+
+function renderWeekAhead() {
+  const w = state.week, el = $('#weekAhead');
+  if (!w) {
+    el.innerHTML = `<div class="msg ${state.errors.week ? 'err' : ''}">${state.errors.week ? 'Week ahead unavailable — ' + esc(state.errors.week) : '<span class="skeleton">loading…</span>'}</div>`;
+    return;
+  }
+  const now = Date.now(), today = etParts(now).date;
+  const c = weekCounts(w);
+  const range = `${dayLabel(w.days[0].date)} – ${dayLabel(w.days.at(-1).date)}`;
+  const est = w.days.some(d => d.source === 'nasdaq');
+  el.innerHTML = `<div class="wk-sum"><b>${c.high} high-impact</b> · ${c.mid} intermediate US events${c.earn ? ` · ${c.earn} mega-cap earnings` : ''} <span class="dim">· ${range} · times ET</span></div>
+    ${w.days.map(d => `<div class="wk-day ${d.date === today ? 'today' : ''}">
+      <div class="wk-date">${dayLabel(d.date).toUpperCase()}${d.date === today ? ' · TODAY' : ''}</div>
+      <div class="wk-items">${d.events.map(e => e.impact === 'Holiday'
+        ? `<div class="wk-ev hol">🏛 ${esc(e.title)} <span class="dim">(US holiday — thin liquidity / early closes possible)</span></div>`
+        : `<div class="wk-ev ${e.impact === 'High' ? 'hi' : 'mid'} ${e.t < now - 5 * 60e3 ? 'past' : ''}">
+            <span class="impact ${esc(e.impact)}"></span><span class="wk-t">${etTime(e.t)}</span>
+            <span class="wk-n">${esc(e.title)}</span>
+            <span class="dim">${e.forecast ? `fcst ${esc(e.forecast)} · ` : ''}${e.previous ? `prev ${esc(e.previous)}` : ''}</span>${e.est ? ' <span class="est" title="Rating estimated until Forex Factory publishes this week">est.</span>' : ''}</div>`).join('')
+        || '<div class="wk-ev none">No high or intermediate US events</div>'}
+        ${d.earnings.length ? `<div class="wk-ev earn">Earnings: ${esc(d.earnings.join(', '))}</div>` : ''}</div>
+    </div>`).join('')}
+    ${est ? `<p class="hint">"est." = Forex Factory hasn't published that week yet (it does on Sundays); the rating is estimated from the events it usually marks red/orange, using Nasdaq's US calendar.${w.nasdaqErr ? ` Nasdaq: ${esc(w.nasdaqErr)}` : ''}</p>` : ''}`;
+}
+
+// Text lines (red-folder only) for the brief and the AI context.
+function weekHighLines() {
+  if (!state.week) return [];
+  return state.week.days.map(d => {
+    const hi = d.events.filter(e => e.impact === 'High' || e.impact === 'Holiday');
+    const parts = [...hi.map(e => e.impact === 'Holiday' ? `${e.title} (holiday)` : `${etTime(e.t)} ${e.title}${e.forecast ? ` (fcst ${e.forecast}, prev ${e.previous || 'n/a'})` : ''}${e.est ? ' [est.]' : ''}`),
+      ...(d.earnings.length ? [`earnings ${d.earnings.join(', ')}`] : [])];
+    return parts.length ? { date: d.date, text: parts.join(' · ') } : null;
+  }).filter(Boolean);
 }
 
 // ---------------------------------------------------------------- brief
@@ -1956,9 +2130,11 @@ function renderBrief() {
     ${b.weekHigh.length ? `<h5>HIGH-IMPACT EARLIER THIS WEEK</h5><ul>${b.weekHigh.map(itemLine).join('')}</ul>` : ''}
     <h5>THEMES</h5>
     ${b.themes.slice(0, 5).map(t => `<div class="theme"><b>${esc(t.name)}</b> <span class="dim">(${t.items.length})</span> — <span class="dim">${t.items.slice(0, 2).map(i => esc(i.title.slice(0, 140))).join(' · ')}</span></div>`).join('') || '<div class="dim">—</div>'}
-    <h5>${b.closed ? 'AHEAD · NEXT 72H' : 'CATALYSTS · NEXT 24H'}</h5>
+    ${b.closed ? '' : `<h5>CATALYSTS · NEXT 24H</h5>
     <ul>${b.events.map(e => `<li><span class="impact ${esc(e.ffImpact)}"></span>${fmtWhen(e.t)} ${esc(e.country)} ${esc(e.title)}${e.forecast ? ` <span class="dim">f ${esc(e.forecast)} / p ${esc(e.previous)}</span>` : ''}</li>`).join('') || `<li class="dim">No US red/orange events in the next ${b.horizonH}h${b.closed ? ' (Forex Factory lists the current week only)' : ''}.</li>`}
-    ${b.earn.length ? `<li>Earnings: ${esc(b.earn.join(', '))}</li>` : ''}</ul>`;
+    ${b.earn.length ? `<li>Earnings: ${esc(b.earn.join(', '))}</li>` : ''}</ul>`}
+    <h5>WEEK AHEAD · HIGH IMPACT (US red folder)${state.week ? ` · ${esc(dayLabel(state.week.days[0].date))} – ${esc(dayLabel(state.week.days.at(-1).date))}` : ''}</h5>
+    <ul>${state.week ? (weekHighLines().map(l => `<li><b>${esc(dayLabel(l.date))}</b> — ${esc(l.text)}</li>`).join('') || '<li class="dim">No red-folder US events expected.</li>') : '<li class="skeleton">loading…</li>'}</ul>`;
   $('#brief').innerHTML = `<div class="brief">${html}</div>`;
 }
 
@@ -1984,6 +2160,13 @@ function briefText() {
   earlier.filter(i => tierOf(i) === 'HIGH').slice(0, 15).forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 300)}`));
   L.push('', 'EARLIER THIS WEEK — OTHER IMPORTANT (LOW/INTERMEDIATE):');
   earlier.filter(i => ['LOW', 'INTERMEDIATE'].includes(tierOf(i))).sort(byImpact).slice(0, 15).forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 200)}`));
+  if (state.week) {
+    L.push('', `WEEK AHEAD — US EVENTS (${dayLabel(state.week.days[0].date)} to ${dayLabel(state.week.days.at(-1).date)}, ET; [est.] = rating estimated):`);
+    for (const d of state.week.days) {
+      const ev = d.events.map(e => e.impact === 'Holiday' ? `${e.title} (US holiday)` : `${etTime(e.t)} ${e.title} [${e.impact === 'High' ? 'HIGH' : 'INTERMEDIATE'}${e.est ? ', est.' : ''}]${e.forecast ? ` fcst ${e.forecast}` : ''}${e.previous ? ` prev ${e.previous}` : ''}`);
+      L.push(`- ${dayLabel(d.date)}: ${[...ev, ...(d.earnings.length ? [`earnings ${d.earnings.join(', ')}`] : [])].join('; ') || 'nothing major'}`);
+    }
+  }
   L.push('', 'US ECONOMIC CALENDAR THIS WEEK (ET):');
   state.events.forEach(e => L.push(`- ${fmtWhen(e.t)} ${e.country} ${e.title} [${e.impact.tier}${e.t <= b.now && e.impact.why ? ': ' + e.impact.why : ''}] fcst ${e.forecast || 'n/a'}, prev ${e.previous || 'n/a'}${e.t > b.now ? ' (upcoming)' : ''}`));
   if (state.earnings) state.earnings.groups.forEach(g => g.rows.length && L.push(`- Earnings ${g.title}: ${g.rows.slice(0, 12).map(r => r.sym + (r.surprise ? ` (surprise ${r.surprise}%)` : '')).join(', ')}`));
@@ -2236,10 +2419,12 @@ function bind() {
   $('#newsTabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (b) { state.newsTab = b.dataset.tab; renderNews(); } };
   $('#newsSearch').oninput = (e) => { state.newsQuery = e.target.value; renderNews(); };
   $$('[data-cal]').forEach(b => b.onclick = () => {
-    const tv = b.dataset.cal === 'tv';
+    const tab = b.dataset.cal, tv = tab === 'tv';
     $$('[data-cal]').forEach(x => x.classList.toggle('on', x === b));
-    $('#calendar').classList.toggle('hidden', tv);
+    $('#weekAhead').classList.toggle('hidden', tab !== 'week');
+    $('#calendar').classList.toggle('hidden', tab !== 'list');
     $('#calendarTV').classList.toggle('hidden', !tv);
+    if (tab === 'list') renderCalendar();
     if (tv && !$('#calendarTV').children.length) TV.econCalendar($('#calendarTV'));
   });
 
