@@ -81,7 +81,9 @@ export async function loadNews(cfg) {
     return parseFeed(xml, f.name);
   });
   const items = [], failed = [];
-  results.forEach((r, i) => r.ok ? items.push(...r.value) : failed.push(cfg.feeds[i].name));
+  const why = (e) => /unexpected response/.test(e.message) ? 'blocked or not a news feed'
+    : e.message.replace(/^[\w.-]+: /, '');
+  results.forEach((r, i) => r.ok ? items.push(...r.value) : failed.push(`${cfg.feeds[i].name} (${why(r.error)})`));
   return { items: classify(items, cfg), failed };
 }
 

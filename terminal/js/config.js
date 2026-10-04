@@ -47,8 +47,9 @@ export const DEFAULTS = {
     { name: 'CNBC Earnings',    url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839135' },
     { name: 'Yahoo Finance',    url: 'https://finance.yahoo.com/news/rssindex' },
     { name: 'Investing Econ',   url: 'https://www.investing.com/rss/news_14.rss' },
-    { name: 'Google: Futures',  url: 'https://news.google.com/rss/search?q=%22stock+futures%22+OR+%22S%26P+500%22+OR+Nasdaq+when:1d&hl=en-US&gl=US&ceid=US:en' },
-    { name: 'Google: Macro',    url: 'https://news.google.com/rss/search?q=Fed+OR+Powell+OR+inflation+OR+tariffs+OR+Treasury+yields+when:1d&hl=en-US&gl=US&ceid=US:en' },
+    { name: 'Yahoo: Index Futures', url: 'https://finance.yahoo.com/rss/headline?s=ES%3DF,NQ%3DF,RTY%3DF,%5EGSPC,%5EIXIC,%5ERUT,CL%3DF,GC%3DF' },
+    { name: 'Investing Stocks', url: 'https://www.investing.com/rss/news_25.rss' },
+    { name: 'Investing Econ Data', url: 'https://www.investing.com/rss/news_95.rss' },
     { name: 'Federal Reserve',  url: 'https://www.federalreserve.gov/feeds/press_all.xml' },
     { name: 'OilPrice',         url: 'https://oilprice.com/rss/main' },
   ],
@@ -93,7 +94,23 @@ export function loadSettings() {
     if (k === 'panels') Object.assign(s.panels, saved.panels);
     else if (k in s) s[k] = saved[k];
   }
+  migrateFeeds(s);
   return s;
+}
+
+// Google News blocks requests from Cloudflare's network (the data relay), so
+// swap the two Google feeds that used to be defaults for working equivalents.
+const RETIRED_FEEDS = {
+  'https://news.google.com/rss/search?q=%22stock+futures%22+OR+%22S%26P+500%22+OR+Nasdaq+when:1d&hl=en-US&gl=US&ceid=US:en': ['Yahoo: Index Futures', 'Investing Stocks'],
+  'https://news.google.com/rss/search?q=Fed+OR+Powell+OR+inflation+OR+tariffs+OR+Treasury+yields+when:1d&hl=en-US&gl=US&ceid=US:en': ['Investing Econ Data'],
+};
+function migrateFeeds(s) {
+  if (!s.feeds.some(f => f.url in RETIRED_FEEDS)) return;
+  const have = new Set(s.feeds.map(f => f.url));
+  s.feeds = s.feeds.flatMap(f => (RETIRED_FEEDS[f.url] || null)
+    ?.map(name => DEFAULTS.feeds.find(d => d.name === name))
+    .filter(d => d && !have.has(d.url) && have.add(d.url)) ?? [f]);
+  saveSettings(s);
 }
 
 export function saveSettings(s) {
