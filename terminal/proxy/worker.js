@@ -29,7 +29,6 @@ const ALLOWED_HOSTS = [
 const ALLOWED_ORIGINS = [
   'null',
   'https://thetiltedtrader.github.io',
-  'https://thetiltedtraders.github.io',
   'http://localhost:8000',
   'http://127.0.0.1:8000',
 ];
