@@ -31,7 +31,11 @@ async function attempt(url, timeoutMs, validate, signal) {
   signal?.addEventListener('abort', onAbort);
   try {
     const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) {
+      // our relay explains refusals (e.g. "Host not allowed: …") in the body
+      const body = r.status === 403 ? (await r.text().catch(() => '')).slice(0, 80) : '';
+      throw new Error(/Host not allowed/.test(body) ? body : `HTTP ${r.status}`);
+    }
     const text = await r.text();
     if (validate && !validate(text)) throw new Error('unexpected response');
     return text;
@@ -67,7 +71,7 @@ export async function fetchText(url, opts = {}) {
       netStats.ok++; netStats.lastRoute = 'public proxy';
       return text;
     } catch (e) {
-      lastErr = e.errors?.[0] || e;
+      if (!/Host not allowed/.test(lastErr?.message)) lastErr = e.errors?.[0] || e;
     } finally { stop.abort(); }
   }
 

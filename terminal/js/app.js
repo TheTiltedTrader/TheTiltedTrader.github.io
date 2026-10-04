@@ -5,6 +5,7 @@ import { loadNews, overnightStart } from './news.js';
 import { loadEarnings, loadCalendar } from './events.js';
 import * as TV from './widgets.js';
 import { aiBrief } from './ai.js';
+import { loadReactionData, tierNews, tierEvent } from './impact.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -15,7 +16,8 @@ let cfg = loadSettings();
 configureNet(cfg);
 
 const state = {
-  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [],
+  trend: [], trendErr: {}, quotes: [], news: [], newsFailed: [], earnings: null, calendar: [], events: [], rx: null,
+  aiAt: 0, aiErr: '', aiBusy: false,
   selected: 0, newsTab: 'HIGH IMPACT', newsQuery: '', seenLinks: new Set(), ai: '', errors: {},
   updated: {}, busy: false,
 };
@@ -44,7 +46,7 @@ function tickClock() {
   const pill = $('#session');
   pill.className = `pill ${s.cls}`;
   pill.textContent = s.text;
-  const nxt = state.calendar.find(e => e.t > now - 60e3);
+  const nxt = state.events.find(e => e.t > now - 60e3);
   if (nxt) {
     const mins = Math.round((nxt.t - now) / 60e3);
     const when = mins < 0 ? 'NOW' : mins < 90 ? `in ${mins}m` : mins < 48 * 60 ? `in ${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : new Date(nxt.t).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' });
@@ -94,7 +96,8 @@ async function refreshNews() {
   state.news = items; state.newsFailed = failed; state.updated.news = Date.now();
 }
 async function refreshEarnings() { state.earnings = await loadEarnings(cfg); state.updated.earnings = Date.now(); }
-async function refreshCalendar() { state.calendar = await loadCalendar(cfg); state.updated.calendar = Date.now(); }
+async function refreshCalendar() { state.calendar = await loadCalendar(); state.updated.calendar = Date.now(); }
+async function refreshImpact() { state.rx = await loadReactionData(cfg); state.updated.impact = Date.now(); }
 
 async function refreshAll() {
   if (state.busy) return;
@@ -107,10 +110,14 @@ async function refreshAll() {
     news: [refreshNews, renderNews],
     calendar: [refreshCalendar, renderCalendar],
     earnings: [refreshEarnings, renderEarnings],
+    impact: [refreshImpact, () => {}],
   };
   await Promise.all(Object.entries(jobs).map(async ([k, [load, render]]) => {
     try { await load(); delete state.errors[k]; }
     catch (e) { state.errors[k] = e.message; console.warn(k, e); }
+    if (['news', 'calendar', 'impact'].includes(k)) {
+      try { applyImpact(); renderNews(); renderCalendar(k === 'calendar'); } catch (e) { console.error('impact', e); }
+    }
     try { render(); } catch (e) { console.error('render', k, e); }
     renderBrief();
     if (k === 'trend' || k === 'quotes') renderTape();
@@ -120,7 +127,9 @@ async function refreshAll() {
   const errs = Object.keys(state.errors);
   setStatus(errs.length ? `Updated ${etTime(Date.now())} · issues: ${errs.join(', ')}` : `Updated ${etTime(Date.now())} ET`, errs.length ? 'err' : '');
   renderStatusbar();
+  updateConnectButton();
   tickClock();
+  maybeAutoAI();
 }
 
 // ---------------------------------------------------------------- renderers
@@ -194,12 +203,49 @@ function renderIndices() {
         ${spark(q.closes, { w: 150, h: 22, base: q.prev })}</div>`).join('')}</div>`;
 }
 
+// ---------------------------------------------------------------- impact tiers
+const TIER_RANK = { HIGH: 4, PENDING: 3, INTERMEDIATE: 2, LOW: 1, UNMEASURED: 1 };
+const tierOf = (i) => i.impact?.tier || null;
+
+function applyImpact() {
+  const now = Date.now();
+  for (const it of state.news) it.impact = tierNews(it, state.rx, cfg, now);
+  const redTimes = state.calendar.filter(e => e.country === 'USD' && e.impact === 'High').map(e => e.t);
+  state.events = state.calendar
+    .map(e => ({ ...e, ffImpact: e.impact, impact: tierEvent(e, state.rx, cfg, now, { redTimes }) }))
+    .filter(e => e.impact);
+}
+
+// Released Forex Factory events, shaped like news items.
+function eventItems() {
+  const now = Date.now();
+  return state.events.filter(e => e.t <= now).map(e => ({
+    kind: 'event', t: e.t, title: `${e.country} ${e.title}`, src: 'Forex Factory',
+    link: 'https://www.forexfactory.com/calendar', tags: [], desc: '', score: 5, ev: e, impact: e.impact,
+  }));
+}
+const allItems = () => [...state.news, ...eventItems()].sort((a, b) => b.t - a.t);
+
+function tierTag(i) {
+  const t = tierOf(i), why = i.impact?.why ? ` · ${esc(i.impact.why)}` : '';
+  if (t === 'HIGH') return `<span class="flag">■ HIGH IMPACT${why}</span>`;
+  if (t === 'INTERMEDIATE') return `<span class="flag mid">◆ INTERMEDIATE${why}</span>`;
+  if (t === 'PENDING') return `<span class="flag pend">◌ MEASURING${why ? '' : ''}</span>`;
+  if (t === 'LOW') return `<span class="flag low">▽ LOW${why}</span>`;
+  if (t === 'UNMEASURED') return `<span class="flag low">▽ LOW · reaction data unavailable</span>`;
+  return '';
+}
+
+const NEWS_TABS = ['HIGH IMPACT', 'INTERMEDIATE', 'LOW IMPACT', 'OVERNIGHT', 'ALL'];
+
 function newsFilterItems() {
   const tab = state.newsTab, q = state.newsQuery.toLowerCase();
   const since = overnightStart(cfg);
-  let list = state.news;
-  if (tab === 'HIGH IMPACT') list = list.filter(i => i.high);
-  else if (tab === 'OVERNIGHT') list = list.filter(i => i.t >= since).sort((a, b) => b.score - a.score);
+  let list = allItems();
+  if (tab === 'HIGH IMPACT') list = list.filter(i => ['HIGH', 'PENDING'].includes(tierOf(i)));
+  else if (tab === 'INTERMEDIATE') list = list.filter(i => tierOf(i) === 'INTERMEDIATE');
+  else if (tab === 'LOW IMPACT') list = list.filter(i => ['LOW', 'UNMEASURED'].includes(tierOf(i)));
+  else if (tab === 'OVERNIGHT') list = list.filter(i => i.t >= since).sort((a, b) => (TIER_RANK[tierOf(b)] || 0) - (TIER_RANK[tierOf(a)] || 0) || b.score - a.score);
   else if (tab !== 'ALL' && tab !== 'TV LIVE') list = list.filter(i => i.tags.includes(tab));
   if (q) list = list.filter(i => `${i.title} ${i.src} ${i.tags.join(' ')}`.toLowerCase().includes(q));
   return list.slice(0, 200);
@@ -207,9 +253,16 @@ function newsFilterItems() {
 
 function renderNews() {
   const since = overnightStart(cfg);
-  const tabs = ['HIGH IMPACT', 'OVERNIGHT', 'ALL', ...cfg.folders.map(f => f.name), 'TV LIVE'];
-  const count = (t) => t === 'ALL' ? state.news.length : t === 'HIGH IMPACT' ? state.news.filter(i => i.high).length
-    : t === 'OVERNIGHT' ? state.news.filter(i => i.t >= since).length : t === 'TV LIVE' ? '' : state.news.filter(i => i.tags.includes(t)).length;
+  const items = allItems();
+  const tabs = [...NEWS_TABS, ...cfg.folders.map(f => f.name), 'TV LIVE'];
+  const count = (t) => ({
+    'ALL': items.length,
+    'HIGH IMPACT': items.filter(i => tierOf(i) === 'HIGH').length,
+    'INTERMEDIATE': items.filter(i => tierOf(i) === 'INTERMEDIATE').length,
+    'LOW IMPACT': items.filter(i => ['LOW', 'UNMEASURED'].includes(tierOf(i))).length,
+    'OVERNIGHT': items.filter(i => i.t >= since).length,
+    'TV LIVE': '',
+  })[t] ?? state.news.filter(i => i.tags.includes(t)).length;
   $('#newsTabs').innerHTML = tabs.map(t => `<button data-tab="${esc(t)}" class="${t === state.newsTab ? 'on' : ''}">${esc(t)}<span class="n">${count(t)}</span></button>`).join('');
   const tv = state.newsTab === 'TV LIVE';
   $('#newsList').classList.toggle('hidden', tv);
@@ -217,17 +270,24 @@ function renderNews() {
   if (tv) { if (!$('#newsTV').children.length) TV.newsTimeline($('#newsTV')); return; }
 
   const today = etParts(Date.now()).date;
-  const items = newsFilterItems();
-  $('#newsList').innerHTML = items.length ? items.map(i => {
+  const list = newsFilterItems();
+  const emptyMsg = state.newsTab === 'HIGH IMPACT'
+    ? `Nothing qualifies yet: no story or data release has moved ${cfg.impactMinFutures}+ US index futures ≥ ${cfg.impactFutPct}% or a Mag 10 stock it names ≥ ${cfg.impactMagPct}% within ${cfg.impactWindowMin} minutes. Check LOW IMPACT for important stories without a market reaction.`
+    : 'No headlines match.';
+  $('#newsList').innerHTML = list.length ? list.map(i => {
     const d = etParts(i.t).date;
-    return `<div class="news-item ${i.high ? 'hi' : ''} ${i.isNew ? 'new' : ''}">
+    const title = i.title.length > 300 ? i.title.slice(0, 297) + '…' : i.title;
+    const evInfo = i.ev ? `<span>${i.ev.ffImpact === 'High' ? 'red' : i.ev.ffImpact === 'Medium' ? 'orange' : 'yellow'} folder · fcst ${esc(i.ev.forecast || 'n/a')} · prev ${esc(i.ev.previous || 'n/a')}</span>` : '';
+    return `<div class="news-item ${tierOf(i) === 'HIGH' ? 'hi' : ''} ${i.isNew ? 'new' : ''}">
       <div class="t">${etTime(i.t)}${d !== today ? `<span class="d">${new Date(i.t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}</span>` : ''}</div>
-      <div><a class="h" href="${esc(safeUrl(i.link))}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a>
-      <div class="meta">${i.high ? '<span class="flag">■ HIGH IMPACT</span>' : ''}<span class="src">${esc(i.src)}</span>
+      <div><a class="h" href="${esc(safeUrl(i.link))}" target="_blank" rel="noopener noreferrer">${i.kind === 'event' ? '📅 ' : ''}${esc(title)}</a>
+      <div class="meta">${tierTag(i)}<span class="src">${esc(i.src)}</span>${evInfo}
         ${i.tags.map(t => `<span class="ft">#${esc(t)}</span>`).join('')}${i.dupes ? `<span>+${i.dupes} sources</span>` : ''}<span>${fmtAgo(i.t)} ago</span></div></div>
     </div>`;
-  }).join('') : `<div class="msg ${state.errors.news ? 'err' : ''}">${state.errors.news ? 'News unavailable — ' + esc(state.errors.news) : state.updated.news ? 'No headlines match.' : '<span class="skeleton">loading feeds…</span>'}</div>`;
-  $('#newsSub').textContent = state.updated.news ? `${state.news.length} stories · ${cfg.feeds.length - state.newsFailed.length}/${cfg.feeds.length} feeds` : '';
+  }).join('') : `<div class="msg ${state.errors.news ? 'err' : ''}">${state.errors.news ? 'News unavailable — ' + esc(state.errors.news) : state.updated.news ? esc(emptyMsg) : '<span class="skeleton">loading feeds…</span>'}</div>`;
+  $('#newsSub').textContent = state.updated.news
+    ? `${state.news.length} stories · ${cfg.feeds.length - state.newsFailed.length}/${cfg.feeds.length} feeds${state.rx ? '' : ' · reaction data loading'}`
+    : '';
 }
 
 function renderEarnings() {
@@ -252,40 +312,50 @@ function renderEarnings() {
 function renderCalendar(autoScroll = true) {
   const now = Date.now();
   const today = etParts(now).date;
-  $('#calSub').textContent = `${cfg.calendarCurrencies} · ${cfg.calendarMinImpact}+ impact · times ET`;
-  if (!state.calendar.length) {
-    $('#calendar').innerHTML = `<div class="msg ${state.errors.calendar ? 'err' : ''}">${state.errors.calendar ? 'Calendar unavailable — ' + esc(state.errors.calendar) + ' (TradingView tab still works).' : state.updated.calendar ? 'No events this week at this impact level.' : '<span class="skeleton">loading…</span>'}</div>`;
+  $('#calSub').textContent = `US red = high · US orange = intermediate · others only if futures moved ≥ ${cfg.impactFutPct}% · ET`;
+  if (!state.events.length) {
+    $('#calendar').innerHTML = `<div class="msg ${state.errors.calendar ? 'err' : ''}">${state.errors.calendar ? 'Calendar unavailable — ' + esc(state.errors.calendar) + ' (TradingView tab still works).' : state.updated.calendar ? 'No US red/orange events this week.' : '<span class="skeleton">loading…</span>'}</div>`;
     return;
   }
-  $('#calendar').innerHTML = `<table class="tbl"><thead><tr><th>DAY</th><th>TIME</th><th style="text-align:left">EVENT</th><th>FCST</th><th>PREV</th><th>IN</th></tr></thead><tbody>${state.calendar.map(e => {
+  $('#calendar').innerHTML = `<table class="tbl"><thead><tr><th>DAY</th><th>TIME</th><th style="text-align:left">EVENT</th><th>IMPACT</th><th>FCST</th><th>PREV</th><th style="text-align:left">REACTION</th><th>IN</th></tr></thead><tbody>${state.events.map(e => {
     const p = etParts(e.t);
     const mins = Math.round((e.t - now) / 60e3);
     const rowCls = [mins < -5 ? 'past' : '', mins >= -5 && mins < 120 ? 'soon' : '', p.date === today ? 'today' : ''].join(' ');
     const until = mins < -5 ? 'done' : mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : `${Math.floor(mins / 1440)}d`;
+    const tier = e.impact.tier;
+    const tierCell = tier === 'HIGH' ? '<span class="tier hi">HIGH</span>' : '<span class="tier mid">INTERM.</span>';
+    const react = e.t > now ? '' : e.impact.hit ? `<span class="${cls(e.impact.moves[0]?.pct)}">${esc(e.impact.why.replace(/^moved futures: /, ''))}</span>` : esc(e.impact.why || '');
     return `<tr class="cal-row ${rowCls}"><td>${p.wd}</td><td>${etTime(e.t)}</td>
-      <td style="text-align:left"><span class="impact ${esc(e.impact)}"></span>${esc(e.country)} ${esc(e.title)}</td>
-      <td>${esc(e.forecast || '—')}</td><td class="dim">${esc(e.previous || '—')}</td><td>${until}</td></tr>`;
+      <td style="text-align:left"><span class="impact ${esc(e.ffImpact)}"></span>${esc(e.country)} ${esc(e.title)}</td>
+      <td>${tierCell}</td><td>${esc(e.forecast || '—')}</td><td class="dim">${esc(e.previous || '—')}</td><td style="text-align:left" class="dim">${react}</td><td>${until}</td></tr>`;
   }).join('')}</tbody></table>`;
   const firstUp = $('#calendar .cal-row:not(.past)');
   if (firstUp && autoScroll) $('#calendar').scrollTop = Math.max(0, firstUp.offsetTop - 40);
 }
 
-// ---------------------------------------------------------------- overnight brief
+// ---------------------------------------------------------------- brief
+const fmtWhen = (t) => new Date(t).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' });
+const byImpact = (a, b) => (TIER_RANK[tierOf(b)] || 0) - (TIER_RANK[tierOf(a)] || 0) || b.score - a.score;
+
 function briefData() {
   const now = Date.now();
+  const session = sessionState(now);
+  const closed = session.cls === 'closed';
   const since = overnightStart(cfg, now);
-  const overnight = state.news.filter(i => i.t >= since);
+  const items = allItems();
+  const overnight = items.filter(i => i.t >= since);
+  const top = overnight.filter(i => tierOf(i)).sort(byImpact).slice(0, 7);
+  const weekHigh = items.filter(i => tierOf(i) === 'HIGH' && i.t >= now - 7 * 86400e3 && i.t < since).slice(0, 8);
   const tone = riskTone(state.trend);
   const themes = cfg.folders.map(f => {
-    const items = overnight.filter(i => i.tags.includes(f.name)).sort((a, b) => b.score - a.score);
-    return { name: f.name, items, weight: items.reduce((s, i) => s + Math.max(i.score, 0.5), 0) };
+    const list = overnight.filter(i => i.tags.includes(f.name)).sort(byImpact);
+    return { name: f.name, items: list, weight: list.reduce((s, i) => s + (TIER_RANK[tierOf(i)] || 0.5), 0) };
   }).filter(t => t.items.length).sort((a, b) => b.weight - a.weight);
-  const top = [...overnight].sort((a, b) => b.score - a.score).slice(0, 6);
-  const todayET = etParts(now).date;
-  const events = state.calendar.filter(e => etParts(e.t).date === todayET || (e.t > now && e.t - now < 24 * 3600e3));
+  const horizonH = closed ? 72 : 24;
+  const events = state.events.filter(e => e.t > now - 30 * 60e3 && e.t - now < horizonH * 3600e3);
   const earn = state.earnings?.groups.filter(g => /Reacting|before open/.test(g.title) && !/^Next/.test(g.title))
     .flatMap(g => g.rows.slice(0, 8).map(r => `${r.sym} (${r.when === 'TNS' ? (r.actual ? 'reported' : 'time n/a') : r.when})`)) || [];
-  return { since, overnight, tone, themes, top, events, earn };
+  return { now, session, closed, since, overnight, top, weekHigh, tone, themes, horizonH, events, earn };
 }
 
 function futuresLine(a) {
@@ -295,61 +365,104 @@ function futuresLine(a) {
   if (a.onh != null) pos = a.last > a.onh ? '> ONH' : a.last < a.onl ? '< ONL' : 'in ON rng';
   if (a.pdh != null) pos += a.last > a.pdh ? ' · > PDH' : a.last < a.pdl ? ' · < PDL' : '';
   if (a.vwap) pos += a.last >= a.vwap ? ' · > VWAP' : ' · < VWAP';
-  return { label: a.inst.label, last: nf(a.last, dp), pct: a.pct, ws, pos };
+  return { label: a.inst.label, last: nf(a.last, dp), pct: a.pct, d5: a.chg5d, ws, pos };
+}
+
+function aiSection() {
+  if (state.aiBusy) return `<h5>AI BRIEF</h5><div class="ai-out dim">Writing the brief…</div>`;
+  if (state.aiErr) return `<h5>AI BRIEF</h5><div class="ai-out err">AI brief failed: ${esc(state.aiErr)}</div>${state.ai ? `<div class="ai-out stale">${esc(state.ai)}</div>` : ''}`;
+  if (state.ai) {
+    const age = Math.round((Date.now() - state.aiAt) / 60e3);
+    return `<h5>AI BRIEF · ${etTime(state.aiAt)} ET${age >= 1 ? ` (${age}m ago)` : ''}${cfg.aiAutoMin ? ` · auto every ${cfg.aiAutoMin}m` : ''}</h5><div class="ai-out">${esc(state.ai)}</div>`;
+  }
+  if (!cfg.anthropicKey) return `<div class="ai-hint">AI brief: add an Anthropic API key in Settings (S) and it will write and refresh a brief automatically.</div>`;
+  return '';
+}
+
+function itemLine(i) {
+  const t = tierOf(i);
+  const tag = t === 'HIGH' ? `<span class="tier hi">HIGH</span> ` : t === 'INTERMEDIATE' ? `<span class="tier mid">INT</span> ` : t === 'PENDING' ? `<span class="tier pend">…</span> ` : t ? `<span class="tier low">LOW</span> ` : '';
+  const why = t === 'HIGH' && i.impact?.why ? ` <span class="${cls(i.impact.moves?.[0]?.pct)}">(${esc(i.impact.why)})</span>` : '';
+  const title = i.title.length > 160 ? i.title.slice(0, 157) + '…' : i.title;
+  return `<li>${tag}<span class="dim">${i.t < Date.now() - 20 * 3600e3 ? fmtWhen(i.t) : etTime(i.t)}</span> <a href="${esc(safeUrl(i.link))}" target="_blank" rel="noopener noreferrer">${esc(title)}</a>${why} <span class="dim">— ${esc(i.src)}</span></li>`;
 }
 
 function renderBrief() {
   const b = briefData();
-  const sinceTxt = new Date(b.since).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' });
-  const toneCls = b.tone ? (b.tone.tone.includes('ON') ? 'up' : b.tone.tone.includes('OFF') ? 'dn' : 'amber') : '';
+  const sinceTxt = fmtWhen(b.since);
+  const toneCls = b.tone ? (b.tone.tone.includes('ON') ? 'up' : b.tone.tone.includes('OFF') ? 'dn' : 'accent') : '';
   const fl = state.trend.map(futuresLine);
+  const highN = b.overnight.filter(i => tierOf(i) === 'HIGH').length;
   const html = `
-    ${state.ai ? `<h5>AI BRIEF</h5><div class="ai-out">${esc(state.ai)}</div>` : ''}
-    <h5>TONE</h5>
-    <div class="toneline ${toneCls}">${b.tone ? `${b.tone.tone} <span class="dim" style="font-weight:400">equity futures avg ${sgn(b.tone.avg)}% vs settle</span>` : '<span class="skeleton">waiting for prices…</span>'}</div>
-    <h5>FUTURES · ${cfg.trendHours.join('h / ')}h TRENDS</h5>
-    ${fl.map(f => `<div class="fline"><span class="sym">${esc(f.label)}</span> ${f.last} <span class="${cls(f.pct)}">${sgn(f.pct)}%</span> <span class="dim">· ${esc(f.ws)} · ${esc(f.pos)}</span></div>`).join('') || '<div class="dim">—</div>'}
-    <h5>OVERNIGHT NEWS · since ${sinceTxt} ET · ${b.overnight.length} stories, ${b.overnight.filter(i => i.high).length} high-impact</h5>
-    <ul>${b.top.map(i => `<li><span class="dim">${etTime(i.t)}</span> <a href="${esc(safeUrl(i.link))}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a> <span class="dim">— ${esc(i.src)}</span></li>`).join('') || '<li class="dim">No overnight headlines loaded yet.</li>'}</ul>
+    ${aiSection()}
+    ${b.closed ? `<div class="closed-note">${esc(b.session.text)} — recap of the last session and news since the close.</div>` : ''}
+    <h5>${b.closed ? 'LAST SESSION TONE' : 'TONE'}</h5>
+    <div class="toneline ${toneCls}">${b.tone ? `${b.tone.tone} <span class="dim" style="font-weight:400">equity futures avg ${sgn(b.tone.avg)}% vs prior settle</span>` : '<span class="skeleton">waiting for prices…</span>'}</div>
+    <h5>FUTURES · ${cfg.trendHours.join('h / ')}h TRENDS · 5-DAY</h5>
+    ${fl.map(f => `<div class="fline"><span class="sym">${esc(f.label)}</span> ${f.last} <span class="${cls(f.pct)}">${sgn(f.pct)}%</span> <span class="dim">5d</span> <span class="${cls(f.d5)}">${sgn(f.d5)}%</span> <span class="dim">· ${esc(f.ws)} · ${esc(f.pos)}</span></div>`).join('') || '<div class="dim">—</div>'}
+    <h5>${b.closed ? 'SINCE THE CLOSE' : 'OVERNIGHT'} · since ${sinceTxt} ET · ${b.overnight.length} items · ${highN} high-impact</h5>
+    <ul>${b.top.map(itemLine).join('') || '<li class="dim">Nothing important since the close yet.</li>'}</ul>
+    ${b.weekHigh.length ? `<h5>HIGH-IMPACT EARLIER THIS WEEK</h5><ul>${b.weekHigh.map(itemLine).join('')}</ul>` : ''}
     <h5>THEMES</h5>
-    ${b.themes.slice(0, 5).map(t => `<div class="theme"><b>${esc(t.name)}</b> <span class="dim">(${t.items.length})</span> — <span class="dim">${t.items.slice(0, 2).map(i => esc(i.title)).join(' · ')}</span></div>`).join('') || '<div class="dim">—</div>'}
-    <h5>CATALYSTS · NEXT 24H</h5>
-    <ul>${b.events.map(e => `<li><span class="impact ${esc(e.impact)}"></span>${new Date(e.t).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })} ${esc(e.country)} ${esc(e.title)}${e.forecast ? ` <span class="dim">f ${esc(e.forecast)} / p ${esc(e.previous)}</span>` : ''}</li>`).join('') || '<li class="dim">No high-impact data scheduled.</li>'}
+    ${b.themes.slice(0, 5).map(t => `<div class="theme"><b>${esc(t.name)}</b> <span class="dim">(${t.items.length})</span> — <span class="dim">${t.items.slice(0, 2).map(i => esc(i.title.slice(0, 140))).join(' · ')}</span></div>`).join('') || '<div class="dim">—</div>'}
+    <h5>${b.closed ? 'AHEAD · NEXT 72H' : 'CATALYSTS · NEXT 24H'}</h5>
+    <ul>${b.events.map(e => `<li><span class="impact ${esc(e.ffImpact)}"></span>${fmtWhen(e.t)} ${esc(e.country)} ${esc(e.title)}${e.forecast ? ` <span class="dim">f ${esc(e.forecast)} / p ${esc(e.previous)}</span>` : ''}</li>`).join('') || `<li class="dim">No US red/orange events in the next ${b.horizonH}h${b.closed ? ' (Forex Factory lists the current week only)' : ''}.</li>`}
     ${b.earn.length ? `<li>Earnings: ${esc(b.earn.join(', '))}</li>` : ''}</ul>`;
   $('#brief').innerHTML = `<div class="brief">${html}</div>`;
 }
 
+// Plain-text context for the AI brief and the COPY button.
 function briefText() {
   const b = briefData();
+  const tierTxt = (i) => tierOf(i) ? `[${tierOf(i)}${i.impact?.why ? ': ' + i.impact.why : ''}] ` : '';
   const L = [];
-  L.push(`THE TRADING MISFIT — OVERNIGHT BRIEF — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
-  if (b.tone) L.push(`Tone: ${b.tone.tone} (equity futures avg ${sgn(b.tone.avg)}%)`);
+  L.push(`THE TRADING MISFIT — BRIEF DATA — ${new Date(b.now).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
+  L.push(`Market status: ${b.closed ? 'CLOSED' : 'OPEN'} (${b.session.text})`);
+  L.push(`Impact rules: HIGH = moved ≥${cfg.impactMinFutures} US index futures ≥${cfg.impactFutPct}% or a named Mag 10 stock ≥${cfg.impactMagPct}% within ${cfg.impactWindowMin}m; US red data = HIGH, US orange = INTERMEDIATE; LOW = important but no notable move.`);
+  if (b.tone) L.push(`Tone: ${b.tone.tone} (equity futures avg ${sgn(b.tone.avg)}% vs prior settle)`);
   L.push('', 'FUTURES:');
   for (const a of state.trend) {
-    L.push(`${a.inst.label} ${nf(a.last, a.inst.dp)} (${sgn(a.pct)}% vs settle ${nf(a.priorClose, a.inst.dp)})`);
+    L.push(`${a.inst.label} ${nf(a.last, a.inst.dp)} (${sgn(a.pct)}% vs prior settle ${nf(a.priorClose, a.inst.dp)}; 5-day ${sgn(a.chg5d)}%; last bar ${fmtWhen(a.lastT)} ET)`);
     narrate(a).forEach(n => L.push(`   ${n}`));
   }
-  L.push('', `OVERNIGHT HEADLINES (since ${new Date(b.since).toLocaleString('en-US', { timeZone: 'America/New_York' })} ET):`);
-  [...b.overnight].sort((x, y) => y.score - x.score).slice(0, 25)
-    .forEach(i => L.push(`- ${etTime(i.t)} [${i.src}]${i.tags.length ? ' {' + i.tags.join(', ') + '}' : ''} ${i.title}`));
-  L.push('', 'SCHEDULED (ET):');
-  b.events.forEach(e => L.push(`- ${new Date(e.t).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })} ${e.country} ${e.title} (impact ${e.impact}; fcst ${e.forecast || 'n/a'}, prev ${e.previous || 'n/a'})`));
-  if (state.earnings) state.earnings.groups.forEach(g => g.rows.length && L.push(`- Earnings ${g.title}: ${g.rows.slice(0, 12).map(r => r.sym).join(', ')}`));
+  L.push('', `${b.closed ? 'SINCE THE CLOSE' : 'OVERNIGHT'} (since ${fmtWhen(b.since)} ET):`);
+  b.overnight.filter(i => tierOf(i)).sort(byImpact).slice(0, 30)
+    .forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 300)}`));
+  const earlier = allItems().filter(i => i.t < b.since && i.t >= b.now - 7 * 86400e3);
+  L.push('', 'EARLIER THIS WEEK — HIGH IMPACT:');
+  earlier.filter(i => tierOf(i) === 'HIGH').slice(0, 15).forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 300)}`));
+  L.push('', 'EARLIER THIS WEEK — OTHER IMPORTANT (LOW/INTERMEDIATE):');
+  earlier.filter(i => ['LOW', 'INTERMEDIATE'].includes(tierOf(i))).sort(byImpact).slice(0, 15).forEach(i => L.push(`- ${fmtWhen(i.t)} ${tierTxt(i)}[${i.src}] ${i.title.slice(0, 200)}`));
+  L.push('', 'US ECONOMIC CALENDAR THIS WEEK (ET):');
+  state.events.forEach(e => L.push(`- ${fmtWhen(e.t)} ${e.country} ${e.title} [${e.impact.tier}${e.t <= b.now && e.impact.why ? ': ' + e.impact.why : ''}] fcst ${e.forecast || 'n/a'}, prev ${e.previous || 'n/a'}${e.t > b.now ? ' (upcoming)' : ''}`));
+  if (state.earnings) state.earnings.groups.forEach(g => g.rows.length && L.push(`- Earnings ${g.title}: ${g.rows.slice(0, 12).map(r => r.sym + (r.surprise ? ` (surprise ${r.surprise}%)` : '')).join(', ')}`));
   return L.join('\n');
 }
 
-async function runAI() {
+async function runAI(auto = false) {
+  if (state.aiBusy || (auto && !cfg.anthropicKey)) return;
   const btn = $('#btnAI');
+  state.aiBusy = true; state.aiErr = '';
   btn.textContent = 'THINKING…'; btn.disabled = true;
+  renderBrief();
   try {
     state.ai = await aiBrief(cfg, briefText());
+    state.aiAt = Date.now();
   } catch (e) {
-    state.ai = `AI brief failed: ${e.message}`;
+    state.aiErr = e.message;
+    if (auto) state.aiAt = Date.now(); // don't retry on every refresh
   } finally {
+    state.aiBusy = false;
     btn.textContent = 'AI BRIEF'; btn.disabled = false;
     renderBrief();
     $('#brief').scrollTop = 0;
   }
+}
+
+// Called after each refresh: keep the AI brief current without spamming the API.
+function maybeAutoAI() {
+  if (!cfg.anthropicKey || !cfg.aiAutoMin || state.aiBusy || !state.trend.length) return;
+  if (Date.now() - state.aiAt >= cfg.aiAutoMin * 60e3) runAI(true);
 }
 
 // Scrolling ticker tape built from our own data (always readable, no widget limits).
@@ -383,6 +496,7 @@ async function workerSource() {
 
 async function openConnect() {
   $('#connectUrl').value = cfg.proxyUrl;
+  $('#connectUpdateNote').classList.toggle('hidden', !(hasPrivateRoute() && relayOutdated()));
   $('#connectResult').textContent = ''; $('#connectResult').className = 'dim';
   $('#connect').showModal();
   try { $('#workerCode').value = await workerSource(); }
@@ -412,7 +526,15 @@ async function testConnect() {
   }
 }
 
-function updateConnectButton() { $('#btnConnect').classList.toggle('hidden', hasPrivateRoute()); }
+// Relay deployed before a host was added to its allow-list → offer to update it.
+const relayOutdated = () => state.newsFailed.some(f => /Host not allowed/.test(f));
+function updateConnectButton() {
+  const btn = $('#btnConnect');
+  const outdated = hasPrivateRoute() && relayOutdated();
+  btn.classList.toggle('hidden', hasPrivateRoute() && !outdated);
+  btn.textContent = outdated ? '⚠ UPDATE RELAY' : '⚠ CONNECT DATA';
+  btn.title = outdated ? 'Your relay needs the latest code to load some feeds (e.g. Truth Social)' : 'Set up the free data connection';
+}
 
 function renderStatusbar() {
   const bits = [
@@ -468,8 +590,7 @@ function openSettings() {
   f.impactKeys.value = cfg.impactKeys;
   f.earningsMinCapB.value = cfg.earningsMinCapB;
   f.earningsWatchlist.value = cfg.earningsWatchlist;
-  f.calendarCurrencies.value = cfg.calendarCurrencies;
-  f.calendarMinImpact.value = cfg.calendarMinImpact;
+  for (const k of ['impactFutPct', 'impactMinFutures', 'impactMagPct', 'impactWindowMin', 'impactFutures', 'mag10', 'aiAutoMin']) f[k].value = cfg[k];
   f.anthropicKey.value = cfg.anthropicKey;
   f.aiModel.value = cfg.aiModel;
   $('#panelChecks').innerHTML = Object.keys(DEFAULTS.panels).map(k =>
@@ -494,8 +615,13 @@ function readSettingsForm() {
     impactKeys: f.impactKeys.value.trim(),
     earningsMinCapB: Math.max(0, +f.earningsMinCapB.value || 0),
     earningsWatchlist: f.earningsWatchlist.value.trim(),
-    calendarCurrencies: f.calendarCurrencies.value.trim() || 'USD',
-    calendarMinImpact: f.calendarMinImpact.value,
+    impactFutPct: Math.max(0.05, +f.impactFutPct.value || DEFAULTS.impactFutPct),
+    impactMinFutures: Math.min(4, Math.max(1, Math.round(+f.impactMinFutures.value || DEFAULTS.impactMinFutures))),
+    impactMagPct: Math.max(0.05, +f.impactMagPct.value || DEFAULTS.impactMagPct),
+    impactWindowMin: Math.min(60, Math.max(5, +f.impactWindowMin.value || DEFAULTS.impactWindowMin)),
+    impactFutures: f.impactFutures.value.trim() || DEFAULTS.impactFutures,
+    mag10: f.mag10.value.trim() || DEFAULTS.mag10,
+    aiAutoMin: Math.max(0, Math.min(240, Math.round(+f.aiAutoMin.value || 0))),
     anthropicKey: f.anthropicKey.value.trim(),
     aiModel: f.aiModel.value.trim() || DEFAULTS.aiModel,
     panels: Object.fromEntries(Object.keys(DEFAULTS.panels).map(k => [k, f[`panel_${k}`].checked])),
@@ -510,7 +636,7 @@ function applyNewSettings(next) {
   configureNet(cfg);
   updateConnectButton();
   state.selected = Math.min(state.selected, cfg.instruments.length - 1);
-  state.trend = []; state.ai = '';
+  state.trend = []; state.aiAt = 0; // keep the last AI brief on screen; regenerate after this refresh
   applyPanels();
   mountWidgets();
   setupAuto();
@@ -538,7 +664,7 @@ function bind() {
     try { await navigator.clipboard.writeText($('#workerCode').value); $('#copyWorkerMsg').textContent = 'Copied. Now paste it into the Cloudflare editor.'; }
     catch { $('#workerCode').select(); $('#copyWorkerMsg').textContent = 'Press Ctrl+C to copy the selected code.'; }
   };
-  $('#btnAI').onclick = runAI;
+  $('#btnAI').onclick = () => runAI(false);
   $('#btnCopyBrief').onclick = async () => {
     const txt = (state.ai ? `AI BRIEF:\n${state.ai}\n\n` : '') + briefText();
     try { await navigator.clipboard.writeText(txt); $('#btnCopyBrief').textContent = 'COPIED'; }
@@ -598,7 +724,8 @@ function bind() {
     else if (e.key === '?') $('#help').showModal();
     else if (e.key === '/') { e.preventDefault(); $('#newsSearch').focus(); }
     else if (e.key === 'h') { state.newsTab = 'HIGH IMPACT'; renderNews(); }
-    else if (e.key === 'a') runAI();
+    else if (e.key === 'l') { state.newsTab = 'LOW IMPACT'; renderNews(); }
+    else if (e.key === 'a') runAI(false);
     else if (/^[1-9]$/.test(e.key)) selectInstrument(+e.key - 1);
   });
 }
@@ -610,7 +737,7 @@ mountWidgets();
 renderTrend(); renderNews(); renderEarnings(); renderCalendar(); renderIndices(); renderBrief(); renderStatusbar();
 tickClock();
 setInterval(tickClock, 1000);
-setInterval(() => { if (state.calendar.length) renderCalendar(false); }, 60e3);
+setInterval(() => { if (state.calendar.length || state.news.length) { applyImpact(); renderCalendar(false); renderNews(); } }, 60e3);
 setupAuto();
 updateConnectButton();
 refreshAll().then(() => {

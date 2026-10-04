@@ -51,6 +51,7 @@ export const DEFAULTS = {
     { name: 'Investing Stocks', url: 'https://www.investing.com/rss/news_25.rss' },
     { name: 'Investing Econ Data', url: 'https://www.investing.com/rss/news_95.rss' },
     { name: 'Federal Reserve',  url: 'https://www.federalreserve.gov/feeds/press_all.xml' },
+    { name: 'Truth Social: Trump', url: 'https://www.trumpstruth.org/feed' },
     { name: 'OilPrice',         url: 'https://oilprice.com/rss/main' },
   ],
 
@@ -71,14 +72,23 @@ export const DEFAULTS = {
   earningsMinCapB: 40,          // show earnings for companies >= this market cap ($B)
   earningsWatchlist: 'NVDA, AAPL, MSFT, GOOGL, AMZN, META, TSLA, AVGO, AMD, NFLX, JPM, GS, MS, BAC, WFC, C, UNH, LLY, XOM, CVX, WMT, COST, ORCL, CRM, ADBE, MU, INTC, QCOM, TSM, ASML, NKE, FDX, MCD, DIS, BA, CAT, PLTR, SMCI, ARM, COIN, MSTR',
 
-  calendarCurrencies: 'USD',    // ForexFactory feed: comma list, or ALL
-  calendarMinImpact: 'High',    // High | Medium | Low
+  // ---- market-reaction impact rules (see js/impact.js) ----
+  // HIGH impact only if, within impactWindowMin of the news, a US index future
+  // moves >= impactFutPct or a Mag 10 stock the news is about moves >= impactMagPct.
+  impactFutures: 'ES=F, NQ=F, RTY=F, YM=F',
+  mag10: 'AAPL, MSFT, NVDA, GOOGL, AMZN, META, TSLA, AVGO, ORCL, NFLX',
+  impactFutPct: 0.30,
+  impactMinFutures: 2,          // how many of the index futures must make that move
+  impactMagPct: 0.50,
+  impactWindowMin: 15,
 
   heatmapSource: 'SPX500',      // SPX500, NASDAQ100, DJDJI, AllUSA ...
   chartInterval: '5',
 
   anthropicKey: '',
   aiModel: 'claude-opus-5-5',
+  aiAutoMin: 30,                // auto-regenerate the AI brief this often (0 = manual only)
+  migrations: [],
 
   panels: {
     trend: true, brief: true, heatmap: true, news: true, earnings: true,
@@ -105,12 +115,24 @@ const RETIRED_FEEDS = {
   'https://news.google.com/rss/search?q=Fed+OR+Powell+OR+inflation+OR+tariffs+OR+Treasury+yields+when:1d&hl=en-US&gl=US&ceid=US:en': ['Investing Econ Data'],
 };
 function migrateFeeds(s) {
-  if (!s.feeds.some(f => f.url in RETIRED_FEEDS)) return;
-  const have = new Set(s.feeds.map(f => f.url));
-  s.feeds = s.feeds.flatMap(f => (RETIRED_FEEDS[f.url] || null)
-    ?.map(name => DEFAULTS.feeds.find(d => d.name === name))
-    .filter(d => d && !have.has(d.url) && have.add(d.url)) ?? [f]);
-  saveSettings(s);
+  let changed = false;
+  if (s.feeds.some(f => f.url in RETIRED_FEEDS)) {
+    const have = new Set(s.feeds.map(f => f.url));
+    s.feeds = s.feeds.flatMap(f => (RETIRED_FEEDS[f.url] || null)
+      ?.map(name => DEFAULTS.feeds.find(d => d.name === name))
+      .filter(d => d && !have.has(d.url) && have.add(d.url)) ?? [f]);
+    changed = true;
+  }
+  // one-time additions of new default feeds (not re-added if you delete them)
+  const add = [['truth-social', 'Truth Social: Trump']];
+  for (const [id, name] of add) {
+    if (s.migrations.includes(id)) continue;
+    const d = DEFAULTS.feeds.find(f => f.name === name);
+    if (d && !s.feeds.some(f => f.url === d.url)) s.feeds.push(structuredClone(d));
+    s.migrations = [...s.migrations, id];
+    changed = true;
+  }
+  if (changed) saveSettings(s);
 }
 
 export function saveSettings(s) {

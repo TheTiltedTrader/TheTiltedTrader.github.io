@@ -178,6 +178,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .news-item .meta .src { color: var(--blue); }
 .news-item .meta .ft { color: var(--accent); opacity: .75; }
 .news-item .meta .flag { color: var(--dn); font-weight: 600; }
+.news-item .meta .flag.mid { color: #ff9f2e; }
+.news-item .meta .flag.pend { color: var(--blue); font-weight: 500; }
+.news-item .meta .flag.low { color: var(--dim); font-weight: 400; }
+.tier { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 10px; font-weight: 700; line-height: 15px; }
+.tier.hi { background: var(--dn-2); color: #ff8a97; }
+.tier.mid { background: #4a3210; color: #ffb35c; }
+.tier.low { background: var(--panel-2); color: var(--dim); }
+.tier.pend { background: var(--accent-bg); color: var(--blue); }
+.ai-out.err { border-color: var(--dn-2); background: #2a1216; color: #ffb3bb; }
+.ai-out.stale { opacity: .6; }
+.ai-hint { margin-bottom: 8px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: 6px; color: var(--dim); }
+.closed-note { margin-bottom: 6px; padding: 6px 10px; border-radius: 6px; background: var(--dn-2); color: #ffc2c8; font-size: 12px; }
+.update-note { padding: 8px 10px; border-radius: 6px; background: #3a2e05; color: #ffe08a; }
 
 /* ---------- earnings / calendar ---------- */
 .egroup h5 { margin: 10px 0 3px; font-weight: 600; font-size: 11.5px; color: var(--accent); }

@@ -82,14 +82,13 @@ export async function loadEarnings(cfg) {
   return { groups, today };
 }
 
-const IMPACT_RANK = { Low: 1, Medium: 2, High: 3, Holiday: 0 };
-
-export async function loadCalendar(cfg) {
+// All of this week's events; which ones are shown is decided by the impact
+// rules in impact.js (US red/orange, or anything that moved the futures).
+export async function loadCalendar() {
   const rows = await cachedJSON('ffcal', 'https://nfs.faireconomy.media/ff_calendar_thisweek.json');
-  const cur = cfg.calendarCurrencies.toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
-  const min = IMPACT_RANK[cfg.calendarMinImpact] ?? 3;
   return rows
-    .filter(r => (cur.includes('ALL') || cur.includes(r.country)) && (IMPACT_RANK[r.impact] ?? 0) >= min)
+    .filter(r => r.impact !== 'Holiday')
     .map(r => ({ ...r, t: Date.parse(r.date) }))
+    .filter(r => r.t)
     .sort((a, b) => a.t - b.t);
 }

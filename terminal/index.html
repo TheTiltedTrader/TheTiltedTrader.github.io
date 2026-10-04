@@ -163,11 +163,23 @@
         <legend>Earnings &amp; calendar</legend>
         <div class="cols">
           <label>Min market cap ($B) <input name="earningsMinCapB" type="number" min="0"></label>
-          <label>Calendar currencies <input name="calendarCurrencies" placeholder="USD or USD,EUR or ALL"></label>
-          <label>Min impact <select name="calendarMinImpact">
-            <option>High</option><option>Medium</option><option>Low</option></select></label>
         </div>
         <label>Always-show tickers <textarea name="earningsWatchlist" rows="2" spellcheck="false"></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Impact rules <span class="dim">— HIGH only when the market actually reacts</span></legend>
+        <div class="cols">
+          <label>Futures move ≥ (%) <input name="impactFutPct" type="number" step="0.05" min="0.05"></label>
+          <label>Mag 10 stock move ≥ (%) <input name="impactMagPct" type="number" step="0.05" min="0.05"></label>
+          <label>…in at least N futures <input name="impactMinFutures" type="number" min="1" max="4"></label>
+          <label>Reaction window (min) <input name="impactWindowMin" type="number" min="5" max="60" step="5"></label>
+        </div>
+        <label>US index futures (Yahoo symbols) <input name="impactFutures"></label>
+        <label>Mag 10 tickers <input name="mag10"></label>
+        <p class="hint">News, posts and data releases are HIGH only if, within the window after they hit, at least N of the listed futures moved by the futures threshold,
+          or a Mag 10 stock named in the story moved by the stock threshold. Important stories without a move are LOW.
+          Forex Factory: US red = HIGH, US orange = INTERMEDIATE, all other events hidden unless the futures moved.</p>
       </fieldset>
 
       <fieldset>
@@ -175,6 +187,7 @@
         <div class="cols">
           <label>Anthropic API key <input name="anthropicKey" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
           <label>Model <input name="aiModel"></label>
+          <label>Auto-refresh brief (min, 0 = manual) <input name="aiAutoMin" type="number" min="0" max="240"></label>
         </div>
         <p class="hint">The key stays in this browser and is sent only to api.anthropic.com. Use a key with a spend limit.</p>
       </fieldset>
@@ -194,6 +207,8 @@
   <form method="dialog">
     <div class="modal-h">CONNECT LIVE DATA <span class="dim">— one-time, about 5 minutes, free</span><button class="mini" value="later">✕</button></div>
     <div class="modal-b connect">
+      <p class="update-note hidden" id="connectUpdateNote"><b>Already connected — your relay just needs the latest code</b> (it adds Trump's Truth Social posts).
+        Open your <code>ttt-proxy</code> worker in Cloudflare → <i>Edit code</i>, then repeat step 3 below (replace all the code, Deploy) and click <i>Test &amp; Save</i> in step 4. Your address stays the same.</p>
       <p>Browsers don't let a web page read Yahoo Finance, Nasdaq or news feeds directly, and the free public relays have shut down.
         A free <b>Cloudflare Worker</b> relays the data for you. It runs in Cloudflare's cloud, so nothing is installed or run on your PC.
         Only the market and news sites the terminal uses are allowed through.</p>
@@ -224,12 +239,14 @@
       <div><b>1 – 9</b> load instrument into chart &amp; trend detail</div>
       <div><b>/</b> filter news</div>
       <div><b>H</b> high-impact news only</div>
+      <div><b>L</b> low-impact news (important, no market reaction)</div>
       <div><b>A</b> generate AI brief</div>
       <div><b>Esc</b> close dialogs / clear filter</div>
     </div>
   </form>
 </dialog>
 
+<script src="vendor/anthropic-sdk.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

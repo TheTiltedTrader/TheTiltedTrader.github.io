@@ -61,16 +61,22 @@ export function classify(items, cfg, now = Date.now()) {
   }
 
   const out = [...seen.values()].filter(i => i.t <= now + 5 * 60e3).map(it => {
-    const hay = `${it.title} ${it.desc}`;
+    let hay = `${it.title} ${it.desc}`;
+    // Trump's own posts always contain his name/signature: don't let that alone
+    // file every post under Geopolitics.
+    if (/^Truth Social/.test(it.feed)) hay = hay.replace(/\b(president\s+)?(donald\s+j\.?\s+)?trump\b|\bwhite house\b/gi, ' ');
     const tags = folders.filter(f => f.re && hay.match(f.re)).map(f => f.name);
     const impactHits = new Set((it.title.match(impactRe) || []).map(x => x.toLowerCase()));
     const ageH = (now - it.t) / 3600e3;
     let score = impactHits.size * 2 + tags.length + it.dupes * 1.5;
     if (tickRe && tickRe.test(it.title)) score += 1;
     if (/^(breaking|urgent|alert)\b/i.test(it.title)) score += 3;
-    if (it.feed === 'Federal Reserve') score += 3;
+    const voice = /^(Federal Reserve|Truth Social)/.test(it.feed); // Fed / President statements
+    if (voice) score += 3;
     score -= Math.min(ageH, 24) * 0.15; // fresher first
-    return { ...it, tags, score, high: impactHits.size >= 1 && score >= 2.5 };
+    // "important" = worth measuring; the market reaction decides HIGH vs LOW (impact.js)
+    const important = (impactHits.size >= 1 && score >= 2.5) || (voice && tags.length > 0);
+    return { ...it, tags, score, important };
   });
   return out.sort((a, b) => b.t - a.t);
 }

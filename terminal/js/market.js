@@ -22,7 +22,20 @@ export function etTime(ms) {
 const sessionKey = (ms, openHour) => etParts(ms + (24 - openHour) * HOUR).date;
 
 // ---------- fetching ----------
-async function yahooBars(sym, range = '5d', interval = '5m') {
+// Short-lived memo so the trend monitor and the news-impact engine share one
+// download per symbol per refresh.
+const memo = new Map();
+export function yahooBars(sym, range = '5d', interval = '5m') {
+  const key = `${sym}|${range}|${interval}`;
+  const hit = memo.get(key);
+  if (hit && Date.now() - hit.t < 30e3) return hit.p;
+  const p = fetchYahoo(sym, range, interval);
+  memo.set(key, { t: Date.now(), p });
+  p.catch(() => memo.delete(key));
+  return p;
+}
+
+async function fetchYahoo(sym, range, interval) {
   const path = `/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${range}&includePrePost=true`;
   let j;
   try { j = await fetchJSON(`https://query1.finance.yahoo.com${path}`); }
@@ -166,6 +179,7 @@ export function analyze(inst, data, cfg, now = Date.now()) {
     priorClose, chg: last - priorClose, pct: (last / priorClose - 1) * 100,
     pdh: pd?.h, pdl: pd?.l, pdc: pdClose, onh: on?.h, onl: on?.l, sh: sess?.h, sl: sess?.l,
     vwap, windows, spark,
+    chg5d: (last / (bars[0].o || bars[0].c) - 1) * 100, from5d: bars[0].t,
   };
 }
 

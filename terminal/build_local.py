@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-ORDER = ['config', 'net', 'market', 'news', 'events', 'widgets', 'ai', 'app']
+ORDER = ['config', 'net', 'market', 'news', 'events', 'impact', 'widgets', 'ai', 'app']
 
 EXPORT_RE = re.compile(r'^export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+([A-Za-z_$][\w$]*)', re.M)
 IMPORT_NAMED_RE = re.compile(r"^import\s*\{([^}]*)\}\s*from\s*'\./(\w+)\.js';\s*$", re.M)
@@ -38,14 +38,16 @@ def main() -> None:
     css = (ROOT / 'terminal.css').read_text()
     js = '"use strict";\n' + '\n'.join(bundle_module(n) for n in ORDER)
     js = js.replace('</script', '<\\/script')
+    sdk = (ROOT / 'vendor' / 'anthropic-sdk.js').read_text().replace('</script', '<\\/script')
 
     html = html.replace('<link rel="stylesheet" href="terminal.css">', f'<style>\n{css}</style>')
+    html = html.replace('<script src="vendor/anthropic-sdk.js"></script>', f'<script>\n{sdk}\n</script>')
     html = html.replace('<script type="module" src="js/app.js"></script>',
                         f'<script>\n{js}</script>')
     html = html.replace('see proxy/README.md', 'see the proxy folder README')
     worker = json.dumps((ROOT / 'proxy' / 'worker.js').read_text()).replace('</', '<\\/')
     html = html.replace('<head>', f'<head>\n<script>window.TTT_WORKER_SRC = {worker};</script>', 1)
-    if 'js/app.js' in html or 'terminal.css' in html:
+    if 'js/app.js' in html or 'terminal.css' in html or 'vendor/anthropic-sdk.js"' in html:
         raise SystemExit('index.html layout changed; update build_local.py')
 
     local = ROOT / 'local'

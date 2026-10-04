@@ -20,6 +20,7 @@ const ALLOWED_HOSTS = [
   'oilprice.com',
   'seekingalpha.com',
   'www.coindesk.com',
+  'www.trumpstruth.org',
 ];
 
 // Lock the proxy to your site. 'null' is what browsers send for a page opened
