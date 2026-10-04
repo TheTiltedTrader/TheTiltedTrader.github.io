@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>TTT Terminal</title>
+<title>The Trading Misfit Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -261,7 +261,7 @@ code { color: var(--accent); }
 <body>
 
 <header class="topbar">
-  <div class="brand"><span class="logo">TTT</span><span class="brand-sub">TERMINAL</span></div>
+  <div class="brand"><span class="logo">THE TRADING MISFIT</span><span class="brand-sub">TERMINAL</span></div>
   <div class="clock" id="clock">--:--:-- ET</div>
   <div class="pill" id="session">—</div>
   <div class="next-event" id="nextEvent"></div>
@@ -484,6 +484,8 @@ const __mod_config = (() => {
 // Default settings + persistence. Everything here is editable from the
 // Settings panel (press S) and is stored in this browser's localStorage.
 
+// Storage keys keep the original 'ttt.' prefix so saved settings (incl. the
+// data-connection URL) survive renames of the terminal.
 const STORE_KEY = 'ttt.terminal.settings.v1';
 
 const DEFAULTS = {
@@ -1579,7 +1581,7 @@ function renderBrief() {
 function briefText() {
   const b = briefData();
   const L = [];
-  L.push(`TTT OVERNIGHT BRIEF — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
+  L.push(`THE TRADING MISFIT — OVERNIGHT BRIEF — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
   if (b.tone) L.push(`Tone: ${b.tone.tone} (equity futures avg ${sgn(b.tone.avg)}%)`);
   L.push('', 'FUTURES:');
   for (const a of state.trend) {

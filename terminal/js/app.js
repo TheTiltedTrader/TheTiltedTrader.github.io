@@ -322,7 +322,7 @@ function renderBrief() {
 function briefText() {
   const b = briefData();
   const L = [];
-  L.push(`TTT OVERNIGHT BRIEF — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
+  L.push(`THE TRADING MISFIT — OVERNIGHT BRIEF — ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET`);
   if (b.tone) L.push(`Tone: ${b.tone.tone} (equity futures avg ${sgn(b.tone.avg)}%)`);
   L.push('', 'FUTURES:');
   for (const a of state.trend) {

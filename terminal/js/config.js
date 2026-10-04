@@ -1,6 +1,8 @@
 // Default settings + persistence. Everything here is editable from the
 // Settings panel (press S) and is stored in this browser's localStorage.
 
+// Storage keys keep the original 'ttt.' prefix so saved settings (incl. the
+// data-connection URL) survive renames of the terminal.
 const STORE_KEY = 'ttt.terminal.settings.v1';
 
 export const DEFAULTS = {
