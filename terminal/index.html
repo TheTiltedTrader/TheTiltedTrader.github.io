@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>The Trading Misfit Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="terminal.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="logo">THE TRADING MISFIT</span><span class="brand-sub">TERMINAL</span></div>
+  <div class="clock" id="clock">--:--:-- ET</div>
+  <div class="pill" id="session">—</div>
+  <div class="next-event" id="nextEvent"></div>
+  <div class="spacer"></div>
+  <div class="status" id="status">Loading…</div>
+  <button class="btn primary" id="btnRefresh" title="Refresh data (R)"><span class="key">R</span> REFRESH</button>
+  <select class="btn" id="autoRefresh" title="Auto refresh">
+    <option value="0">AUTO OFF</option><option value="60">AUTO 1m</option><option value="120">AUTO 2m</option>
+    <option value="300">AUTO 5m</option><option value="900">AUTO 15m</option>
+  </select>
+  <button class="btn warn hidden" id="btnConnect" title="Set up the free data connection">⚠ CONNECT DATA</button>
+  <button class="btn" id="btnSettings" title="Settings (S)"><span class="key">S</span> SETTINGS</button>
+  <button class="btn" id="btnHelp" title="Keyboard shortcuts (?)">?</button>
+</header>
+
+<div class="tape" id="tape"></div>
+
+<main class="grid" id="grid">
+
+  <section class="panel span-7" data-panel="trend">
+    <div class="ph"><span class="fn">TRND</span> FUTURES TREND MONITOR
+      <span class="ph-sub" id="trendSub"></span>
+      <div class="ph-tools" id="trendWindows"></div>
+    </div>
+    <div class="pb">
+      <div id="trendHelp"></div>
+      <div class="tbl-wrap"><table class="tbl" id="trendTable"></table></div>
+      <div class="detail" id="trendDetail"></div>
+    </div>
+  </section>
+
+  <section class="panel span-5" data-panel="brief">
+    <div class="ph"><span class="fn">BRF</span> OVERNIGHT BRIEF
+      <div class="ph-tools">
+        <button class="mini" id="btnCopyBrief" title="Copy brief to clipboard">COPY</button>
+        <button class="mini accent" id="btnAI" title="Generate an AI brief with your Anthropic key">AI BRIEF</button>
+      </div>
+    </div>
+    <div class="pb scroll" id="brief"></div>
+  </section>
+
+  <section class="panel span-7 tall" data-panel="heatmap">
+    <div class="ph"><span class="fn">HMAP</span> S&amp;P 500 HEAT MAP <span class="ph-sub">real-time · TradingView</span>
+      <div class="ph-tools">
+        <select class="mini" id="heatSrc">
+          <option value="SPX500">S&amp;P 500</option><option value="NASDAQ100">NASDAQ 100</option>
+          <option value="DJDJI">DOW 30</option><option value="AllUSA">ALL US</option>
+        </select>
+      </div>
+    </div>
+    <div class="pb flush" id="heatmap"></div>
+  </section>
+
+  <section class="panel span-5 tall" data-panel="news">
+    <div class="ph"><span class="fn">NEWS</span> HIGH-IMPACT NEWS
+      <span class="ph-sub" id="newsSub"></span>
+      <div class="ph-tools"><input class="mini search" id="newsSearch" placeholder="filter  /"></div>
+    </div>
+    <div class="tabs" id="newsTabs"></div>
+    <div class="pb scroll" id="newsList"></div>
+    <div class="pb flush hidden" id="newsTV"></div>
+  </section>
+
+  <section class="panel span-7 tall" data-panel="chart">
+    <div class="ph"><span class="fn">GP</span> CHART <span class="ph-sub" id="chartSym"></span>
+      <div class="ph-tools" id="chartTabs"></div>
+    </div>
+    <div class="pb flush" id="chart"></div>
+  </section>
+
+  <section class="panel span-5 tall" data-panel="earnings">
+    <div class="ph"><span class="fn">ERN</span> MARKET-MOVING EARNINGS <span class="ph-sub" id="earnSub"></span></div>
+    <div class="pb scroll" id="earnings"></div>
+  </section>
+
+  <section class="panel span-5" data-panel="indices">
+    <div class="ph"><span class="fn">WEI</span> INDICES &amp; MACRO</div>
+    <div class="pb" id="indices"></div>
+  </section>
+
+  <section class="panel span-7" data-panel="calendar">
+    <div class="ph"><span class="fn">ECO</span> ECONOMIC CALENDAR <span class="ph-sub" id="calSub"></span>
+      <div class="ph-tools">
+        <button class="mini on" data-cal="week">WEEK AHEAD</button>
+        <button class="mini" data-cal="list">THIS WEEK</button>
+        <button class="mini" data-cal="tv">TRADINGVIEW</button>
+      </div>
+    </div>
+    <div class="pb scroll" id="weekAhead"></div>
+    <div class="pb scroll hidden" id="calendar"></div>
+    <div class="pb flush hidden" id="calendarTV"></div>
+  </section>
+
+</main>
+
+<footer class="statusbar" id="statusbar"></footer>
+
+<!-- settings -->
+<dialog id="settings" class="modal">
+  <form method="dialog" id="settingsForm">
+    <div class="modal-h">SETTINGS <span class="dim">— saved in this browser only</span>
+      <button class="mini" value="cancel" formnovalidate>✕</button></div>
+    <div class="modal-b">
+      <fieldset>
+        <legend>Data connection</legend>
+        <label>Your CORS proxy URL <span class="dim">(Cloudflare Worker — see proxy/README.md)</span>
+          <input name="proxyUrl" placeholder="https://ttt-proxy.yourname.workers.dev"></label>
+        <label class="row"><input type="checkbox" name="usePublicProxies"> Fall back to public CORS proxies</label>
+        <div class="cols">
+          <label>Trend windows (hours) <input name="trendHours" placeholder="4, 8"></label>
+          <label>Overnight starts (ET hour) <input name="overnightStartHourET" type="number" min="0" max="23"></label>
+          <label>Chart interval <select name="chartInterval">
+            <option value="1">1m</option><option value="3">3m</option><option value="5">5m</option>
+            <option value="15">15m</option><option value="60">1h</option></select></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Panels</legend>
+        <div class="checks" id="panelChecks"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Futures &amp; instruments <span class="dim">label | name | data symbol (Yahoo, or coinbase:BTC-USD) | TradingView symbol | decimals | tick</span></legend>
+        <textarea name="instruments" rows="8" spellcheck="false"></textarea>
+        <p class="hint">Tip: if your TradingView widgets show CME futures, swap the TV symbol to e.g. <code>CME_MINI:ES1!</code>, <code>CME_MINI:NQ1!</code>, <code>NYMEX:CL1!</code>.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Indices board <span class="dim">label | Yahoo symbol | decimals</span></legend>
+        <textarea name="indices" rows="5" spellcheck="false"></textarea>
+      </fieldset>
+
+      <fieldset>
+        <legend>News feeds <span class="dim">name | RSS/Atom URL</span></legend>
+        <textarea name="feeds" rows="7" spellcheck="false"></textarea>
+        <p class="hint">Any RSS feed works if its site is on the relay's allow-list (top of the relay code).
+          Google News feeds don't work through the Cloudflare relay because Google blocks Cloudflare's servers.
+          For per-ticker news use Yahoo: <code>https://finance.yahoo.com/rss/headline?s=NVDA,AAPL</code></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>News folders <span class="dim">Folder name: keyword, keyword, …</span></legend>
+        <textarea name="folders" rows="7" spellcheck="false"></textarea>
+        <label>High-impact words <textarea name="impactKeys" rows="3" spellcheck="false"></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Earnings &amp; calendar</legend>
+        <div class="cols">
+          <label>Min market cap ($B) <input name="earningsMinCapB" type="number" min="0"></label>
+        </div>
+        <label>Always-show tickers <textarea name="earningsWatchlist" rows="2" spellcheck="false"></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Impact rules <span class="dim">— HIGH only when the market actually reacts</span></legend>
+        <div class="cols">
+          <label>Futures move ≥ (%) <input name="impactFutPct" type="number" step="0.05" min="0.05"></label>
+          <label>Mag 10 stock move ≥ (%) <input name="impactMagPct" type="number" step="0.05" min="0.05"></label>
+          <label>…in at least N futures <input name="impactMinFutures" type="number" min="1" max="4"></label>
+          <label>Reaction window (min) <input name="impactWindowMin" type="number" min="5" max="60" step="5"></label>
+        </div>
+        <label>US index futures (Yahoo symbols) <input name="impactFutures"></label>
+        <label>Mag 10 tickers <input name="mag10"></label>
+        <p class="hint">News, posts and data releases are HIGH only if, within the window after they hit, at least N of the listed futures moved by the futures threshold,
+          or a Mag 10 stock named in the story moved by the stock threshold. Important stories without a move are LOW.
+          Economic calendar shows US events only: Forex Factory red = HIGH, orange = INTERMEDIATE, other US events only if the futures moved.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>AI brief (optional)</legend>
+        <div class="cols">
+          <label>Anthropic API key <input name="anthropicKey" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+          <label>Model <input name="aiModel"></label>
+          <label>Auto-refresh brief (min, 0 = manual) <input name="aiAutoMin" type="number" min="0" max="240"></label>
+        </div>
+        <p class="hint">The key stays in this browser and is sent only to api.anthropic.com. Use a key with a spend limit.</p>
+      </fieldset>
+    </div>
+    <div class="modal-f">
+      <button class="btn" type="button" id="btnExport">EXPORT</button>
+      <button class="btn" type="button" id="btnImport">IMPORT</button>
+      <button class="btn danger" type="button" id="btnReset">RESET DEFAULTS</button>
+      <div class="spacer"></div>
+      <button class="btn" value="cancel" formnovalidate>CANCEL</button>
+      <button class="btn primary" value="save" id="btnSave">SAVE &amp; RELOAD</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="connect" class="modal">
+  <form method="dialog">
+    <div class="modal-h">CONNECT LIVE DATA <span class="dim">— one-time, about 5 minutes, free</span><button class="mini" value="later">✕</button></div>
+    <div class="modal-b connect">
+      <p class="update-note hidden" id="connectUpdateNote"><b>Already connected — your relay just needs the latest code</b> (it adds Trump's Truth Social posts).
+        Open your <code>ttt-proxy</code> worker in Cloudflare → <i>Edit code</i>, then repeat step 3 below (replace all the code, Deploy) and click <i>Test &amp; Save</i> in step 4. Your address stays the same.</p>
+      <p>Browsers don't let a web page read Yahoo Finance, Nasdaq or news feeds directly, and the free public relays have shut down.
+        A free <b>Cloudflare Worker</b> relays the data for you. It runs in Cloudflare's cloud, so nothing is installed or run on your PC.
+        Only the market and news sites the terminal uses are allowed through.</p>
+      <ol>
+        <li><b>Create a free Cloudflare account:</b> <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">dash.cloudflare.com/sign-up</a> (no credit card needed).</li>
+        <li><b>Create a Worker:</b> in the left menu open <i>Workers &amp; Pages</i> (under <i>Compute</i>), then click <i>Create</i> → <i>Start with Hello World!</i> → name it <code>ttt-proxy</code> → <i>Deploy</i>.</li>
+        <li><b>Paste the relay code:</b> click <i>Edit code</i>, select everything in the editor (Ctrl+A) and delete it, then paste this code and click <i>Deploy</i>.
+          <div class="code-row"><button class="btn primary" type="button" id="btnCopyWorker">COPY CODE</button><span class="dim" id="copyWorkerMsg"></span></div>
+          <textarea id="workerCode" rows="5" readonly spellcheck="false"></textarea></li>
+        <li><b>Connect:</b> copy your worker's address from the Cloudflare page (it ends in <code>.workers.dev</code>), paste it here and click <i>Test &amp; Save</i>.
+          <div class="code-row"><input id="connectUrl" placeholder="https://ttt-proxy.your-name.workers.dev">
+          <button class="btn primary" type="button" id="btnTestConnect">TEST &amp; SAVE</button></div>
+          <div id="connectResult" class="dim"></div></li>
+      </ol>
+      <p class="hint">Free plan: 100,000 requests a day. The terminal uses roughly 30 per refresh, so auto-refresh every minute all day is well within it.</p>
+    </div>
+    <div class="modal-f"><div class="spacer"></div><button class="btn" value="later">LATER</button></div>
+  </form>
+</dialog>
+
+<dialog id="help" class="modal small">
+  <form method="dialog">
+    <div class="modal-h">KEYBOARD <button class="mini">✕</button></div>
+    <div class="modal-b keys">
+      <div><b>R</b> refresh data</div>
+      <div><b>Shift + R</b> refresh data + reload TradingView widgets</div>
+      <div><b>S</b> settings</div>
+      <div><b>1 – 9</b> load instrument into chart &amp; trend detail</div>
+      <div><b>/</b> filter news</div>
+      <div><b>H</b> high-impact news only</div>
+      <div><b>L</b> low-impact news (important, no market reaction)</div>
+      <div><b>A</b> generate AI brief</div>
+      <div><b>Esc</b> close dialogs / clear filter</div>
+    </div>
+  </form>
+</dialog>
+
+<script src="vendor/anthropic-sdk.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
